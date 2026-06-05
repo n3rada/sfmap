@@ -1,5 +1,3 @@
-# sfmap
-
 Salesforce surface-centric security assessment toolkit.
 
 ## Installation
@@ -33,7 +31,7 @@ The context can be a raw JSON string or a file reference using `@`. The URL acce
 sfmap target.my.site.com @ctx.json <surface> <action> -T "eyJ" --cookie "sid=; "
 ```
 
-## Surface-centric command model
+## Surface-Centric Command Model
 
 sfmap groups actions by Salesforce surface:
 
@@ -43,7 +41,7 @@ sfmap groups actions by Salesforce surface:
 - Cross-surface mapping: `surface exposure`
 - Files: `files download`
 
-### What is `aura.context` and why is it required?
+### What Is `aura.context` and Why Is It Required?
 
 The Salesforce Aura framework authenticates every POST request not only by session cookie but also by a versioned context descriptor. The server uses this descriptor to confirm that the client is talking to the right application and that the client's cached component versions match the server's current build. **Without a valid context the server will refuse the request entirely**, returning an `exceptionEvent` or a redirect asking the browser to reload.
 
@@ -76,7 +74,7 @@ The `aura.context` field is an internal Aura wire-format object. Salesforce does
 
 `fwuid` and the `loaded` hashes are deployment-specific and change every time Salesforce pushes a new release (three times per year). A context captured today may stop working after the next release window.
 
-### How to capture `aura.context` and `aura.token`
+### How to Capture `aura.context` and `aura.token`
 
 Open the target Community portal in a browser, open DevTools **Network** tab, filter by `aura`, and trigger any page action. Click on a POST to `/s/sfsites/aura` and inspect its request body:
 
@@ -108,11 +106,11 @@ sfmap --proxy http://192.168.1.10:8080 target.my.site.com @ctx.json <surface> <a
 ```
 
 
-## Commands by category
+## Commands by Category
 
 ### Aura
 
-#### `aura list-objects`
+#### Aura List-Objects (`aura list-objects`)
 
 Enumerate all objects visible to the current session via `getConfigData`.
 
@@ -121,7 +119,7 @@ sfmap target.my.site.com @ctx.json aura list-objects -T "eyJ"
 ```
 
 
-#### `aura dump`
+#### Aura Dump (`aura dump`)
 
 Dump records for one or more named objects. First page only by default; use `-f` for all pages.
 
@@ -135,7 +133,7 @@ sfmap target.my.site.com @ctx.json aura dump User Account Contact -f --display \
 ```
 
 
-#### `aura dump-all`
+#### Aura Dump-All (`aura dump-all`)
 
 Dump every visible object to files. Filter by type with `--type`.
 
@@ -150,7 +148,7 @@ sfmap target.my.site.com @ctx.json aura dump-all -T "eyJ" --cookie "sid="
 Output is written to a directory derived from the URL (override with `-o`).
 
 
-#### `aura record`
+#### Aura Record (`aura record`)
 
 Dump a single record by its Salesforce ID.
 
@@ -159,7 +157,7 @@ sfmap target.my.site.com @ctx.json aura record 0015g00000XyZaAAA -T "eyJ" --cook
 ```
 
 
-#### `aura apex-fuzz`
+#### Aura Apex-Fuzz (`aura apex-fuzz`)
 
 Wordlist-fuzz `ApexController` `ACTION$` methods. Tests each controller name from the wordlist and reports those that respond without an Aura exception.
 
@@ -173,7 +171,7 @@ sfmap target.my.site.com @ctx.json aura apex-fuzz --method getData --wordlist ./
 
 ### Guest
 
-#### `guest aura`
+#### Guest Aura (`guest aura`)
 
 Guest visibility scan: enumerate objects, then probe each one without any authentication (`token=undefined`, no cookies). Any object returning data is written to the guest output directory so you can review exactly what is exposed.
 
@@ -188,7 +186,7 @@ For deeper checks, run dedicated surfaces such as `rest content-enum` and `surfa
 
 ### REST
 
-#### `rest content-enum`
+#### Rest Content-Enum (`rest content-enum`)
 
 Enumerate `ContentDocument` and `ContentVersion` records, then probe unauthenticated REST access to file content (`VersionData`).
 
@@ -199,9 +197,9 @@ sfmap target.my.site.com @ctx.json rest content-enum -T "eyJ" --cookie "sid="
 Returns exit code `1` when critical unauthenticated file access is detected.
 
 
-### Cross-surface
+### Cross-Surface
 
-#### `surface exposure`
+#### Surface Exposure (`surface exposure`)
 
 Run broad Salesforce surface checks in one command (self-registration, REST, SOAP, GraphQL, and custom controller discovery).
 
@@ -214,9 +212,9 @@ Writes `exposure_summary.json` in the selected output directory.
 
 ### Files
 
-#### `files download`
+#### Files Download (`files download`)
 
-Download a Salesforce file by its `ContentDocument` (prefix `069`) or `ContentVersion` (prefix `068`) ID. Uses the servlet shepherd endpoint, not the Aura API — a session cookie is required.
+Download a Salesforce file by its `ContentDocument` (prefix `069`) or `ContentVersion` (prefix `068`) ID. Uses the servlet shepherd endpoint, not the Aura API; a session cookie is required.
 
 ```bash
 sfmap target.my.site.com @ctx.json files download 069XXXXXXXXXXXXXXX \
@@ -225,13 +223,13 @@ sfmap target.my.site.com @ctx.json files download 069XXXXXXXXXXXXXXX \
 
 The filename is taken from the `Content-Disposition` response header. Output goes to the same directory as other results (override with `-o`).
 
-## Salesforce documentation
+## Salesforce Documentation
 
-- [Lightning Aura Components Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.lightning.meta/lightning/) — official reference for the Aura framework, component model, and wire protocol
-- [Experience Cloud Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.communities_dev.meta/communities_dev/) — building and securing Experience Cloud (Community) portals
-- [Salesforce Security Guide](https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/) — org-level security controls, sharing rules, guest user settings
-- [Guest User Security Best Practices](https://help.salesforce.com/s/articleView?id=sf.networks_guest_user_license_overview.htm&type=5) — guest user profile permissions, OWD settings for public portals
-- [ContentDocument / ContentVersion object reference](https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contentdocument.htm) — file storage objects queried by the `files download` subcommand
+- [Lightning Aura Components Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.lightning.meta/lightning/): Official reference for Aura framework behavior and wire protocol.
+- [Experience Cloud Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.communities_dev.meta/communities_dev/): Experience Cloud architecture and portal development guidance.
+- [Salesforce Security Guide](https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/): Org security controls, sharing model, and access governance.
+- [Secure Guest User Record Access](https://help.salesforce.com/s/articleView?id=sf.networks_secure_guest_user_record_access.htm&type=5): Current guest user hardening guidance for public Experience Cloud sites.
+- [ContentDocument / ContentVersion Object Reference](https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contentdocument.htm): File storage objects used by the `files download` command.
 
 ## Disclaimer
 
