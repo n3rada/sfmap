@@ -164,10 +164,10 @@ sfmap target.my.site.com @ctx.json aura record 0015g00000XyZaAAA -T "eyJ" --cook
 Wordlist-fuzz `ApexController` `ACTION$` methods. Tests each controller name from the wordlist and reports those that respond without an Aura exception.
 
 ```bash
-sfmap target.my.site.com @ctx.json aura apex-fuzz -w wordlists/apex_controllers.txt -T "eyJ"
+sfmap target.my.site.com @ctx.json aura apex-fuzz -T "eyJ"
 
-# Custom method name
-sfmap target.my.site.com @ctx.json aura apex-fuzz -w wordlists/apex_controllers.txt --method getData -T "eyJ"
+# Custom method name + custom wordlist
+sfmap target.my.site.com @ctx.json aura apex-fuzz --method getData --wordlist ./my_controllers.txt -T "eyJ"
 ```
 
 

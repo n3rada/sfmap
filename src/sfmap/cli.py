@@ -346,9 +346,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_apex.add_argument(
         "-w",
         "--wordlist",
-        required=True,
+        required=False,
+        default=None,
         metavar="FILE",
-        help="Path to controller name wordlist",
+        help="Optional custom controller wordlist path (default: bundled sfmap list)",
     )
     p_apex.add_argument(
         "--method",

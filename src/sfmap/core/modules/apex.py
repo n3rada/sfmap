@@ -1,4 +1,5 @@
 # Built-in imports
+from importlib import resources
 from pathlib import Path
 
 # Third-party imports
@@ -25,19 +26,31 @@ def _payload(descriptor: str, params: dict | None = None) -> dict:
     }
 
 
-def fuzz(client: AuraClient, wordlist_path: str | Path,
+def _load_controllers(wordlist_path: str | Path | None) -> list[str]:
+    if wordlist_path is not None:
+        wordlist = Path(wordlist_path)
+        if not wordlist.exists():
+            raise FileNotFoundError(f"Wordlist not found: {wordlist}")
+        content = wordlist.read_text(encoding="utf-8")
+    else:
+        resource = resources.files("sfmap").joinpath("data/apex_controllers.txt")
+        content = resource.read_text(encoding="utf-8")
+
+    return [
+        line.strip()
+        for line in content.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+
+
+def fuzz(client: AuraClient, wordlist_path: str | Path | None,
          method: str = "invoke", stop_on_first: bool = False) -> list[str]:
     """
     Fuzz ApexController names from wordlist.
     Returns a list of descriptors that did NOT return an ACCESS_DENIED or
     NO_SUCH_ACTION error — i.e. the controller/method exists and is callable.
     """
-    wordlist = Path(wordlist_path)
-    if not wordlist.exists():
-        raise FileNotFoundError(f"Wordlist not found: {wordlist}")
-
-    controllers = [l.strip() for l in wordlist.read_text(encoding="utf-8").splitlines()
-                   if l.strip() and not l.startswith("#")]
+    controllers = _load_controllers(wordlist_path)
 
     hits: list[str] = []
 

@@ -2,7 +2,7 @@
 # Lines starting with # are ignored
 # Format: bare controller name OR full apex:// descriptor
 #
-# Usage: sfmap apex-fuzz -w wordlists/apex_controllers.txt --method myMethod
+# Usage: sfmap <url> <context> aura apex-fuzz --wordlist ./my_list.txt --method myMethod
 #
 # Sources: leaked Salesforce repos, HackerOne reports, common naming conventions
 
