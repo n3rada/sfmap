@@ -477,7 +477,3 @@ def main() -> int:
         logger.info(f"Proxy set to {args.proxy}")
 
     return args.func(args)
-
-
-if __name__ == "__main__":
-    sys.exit(main())
