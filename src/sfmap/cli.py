@@ -61,7 +61,10 @@ def cmd_dump(args: argparse.Namespace) -> int:
         for i, obj in enumerate(args.objects, 1):
             logger.info(f"{i}/{len(args.objects)}) Dumping '{obj}'")
             ok = dump.dump_object(
-                client, obj, output_dir, full=args.full, display=args.display
+                client, obj, output_dir,
+                full=args.full,
+                display=args.display,
+                custom_fields=args.custom_fields,
             )
             if not ok:
                 logger.warning(f"No data returned for '{obj}'")
@@ -87,7 +90,9 @@ def cmd_dump_all(args: argparse.Namespace) -> int:
 
         for i, obj in enumerate(names, 1):
             logger.info(f"{i}/{len(names)}) {obj}")
-            ok = dump.dump_object(client, obj, output_dir, full=args.full)
+            ok = dump.dump_object(client, obj, output_dir,
+                                  full=args.full,
+                                  custom_fields=args.custom_fields)
             if not ok:
                 failed.append(obj)
 
@@ -319,6 +324,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print results to stdout as well as saving",
     )
+    p_dump.add_argument(
+        "--custom-fields",
+        action="store_true",
+        help="Extract __c field names from each dumped record and write custom_fields_summary.txt",
+    )
     p_dump.set_defaults(func=cmd_dump)
 
     p_all = aura_sub.add_parser("dump-all", help="Dump all visible objects to files")
@@ -331,6 +341,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_all.add_argument(
         "-f", "--full", action="store_true", help="Dump all pages per object"
+    )
+    p_all.add_argument(
+        "--custom-fields",
+        action="store_true",
+        help="Extract __c field names from each dumped record and write custom_fields_summary.txt",
     )
     p_all.set_defaults(func=cmd_dump_all)
 
