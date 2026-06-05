@@ -228,8 +228,11 @@ The filename is taken from the `Content-Disposition` response header. Output goe
 ## Salesforce Documentation
 
 - [Lightning Aura Components Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.lightning.meta/lightning/): Official reference for Aura framework behavior and wire protocol.
+- [Introducing Aura Components](https://developer.salesforce.com/docs/atlas.en-us.lightning.meta/lightning/intro_framework.htm): Introductory framework overview for Aura component architecture.
+- [Lightning Web Components vs Aura Components](https://trailhead.salesforce.com/content/learn/modules/lightning-web-components-for-aura-developers/understand-how-lightning-web-components-work-with-aura-components?trail_id=build-lightning-web-components): Platform guidance on interoperability and migration considerations.
 - [Experience Cloud Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.communities_dev.meta/communities_dev/): Experience Cloud architecture and portal development guidance.
 - [Salesforce Security Guide](https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/): Org security controls, sharing model, and access governance.
+- [Salesforce Object Reference - All Objects](https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_list.htm): Canonical object catalog useful for enumeration validation and object-specific behavior.
 
 ## Disclaimer
 
