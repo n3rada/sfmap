@@ -230,8 +230,6 @@ The filename is taken from the `Content-Disposition` response header. Output goe
 - [Lightning Aura Components Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.lightning.meta/lightning/): Official reference for Aura framework behavior and wire protocol.
 - [Experience Cloud Developer Guide](https://developer.salesforce.com/docs/atlas.en-us.communities_dev.meta/communities_dev/): Experience Cloud architecture and portal development guidance.
 - [Salesforce Security Guide](https://developer.salesforce.com/docs/atlas.en-us.securityImplGuide.meta/securityImplGuide/): Org security controls, sharing model, and access governance.
-- [Secure Guest User Record Access](https://help.salesforce.com/s/articleView?id=sf.networks_secure_guest_user_record_access.htm&type=5): Current guest user hardening guidance for public Experience Cloud sites.
-- [ContentDocument / ContentVersion Object Reference](https://developer.salesforce.com/docs/atlas.en-us.object_reference.meta/object_reference/sforce_api_objects_contentdocument.htm): File storage objects used by the `files download` command.
 
 ## Disclaimer
 
