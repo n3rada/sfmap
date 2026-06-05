@@ -118,6 +118,7 @@ def dump_object(
     output_dir: str,
     full: bool = False,
     display: bool = False,
+    custom_fields: bool = False,
 ) -> bool:
     """
     Dumps all pages of object_name to JSON files under output_dir.
@@ -130,6 +131,7 @@ def dump_object(
     )
     page = 1
     wrote_any = False
+    found_fields: set[str] = set()
 
     while True:
         rv = get_items(client, object_name, page_size, page)
@@ -138,6 +140,9 @@ def dump_object(
 
         write_page(output_dir, object_name, page, rv)
         wrote_any = True
+
+        if custom_fields and not object_name.endswith("__c"):
+            found_fields.update(identify_custom_fields(rv))
 
         if display:
             print(json.dumps(rv, ensure_ascii=False, indent=2))
@@ -148,6 +153,10 @@ def dump_object(
         if not full or len(results) < page_size:
             break
 
+    if custom_fields and found_fields:
+        write_custom_fields_summary(output_dir, object_name, found_fields)
+        logger.info(f"{object_name}: {len(found_fields)} custom field(s) found")
+
     return wrote_any
 
 
@@ -157,6 +166,45 @@ def write_page(output_dir: str, object_name: str, page: int, value: dict) -> Non
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(value, ensure_ascii=False, indent=2))
     logger.debug(f"Saved {path}")
+
+
+def identify_custom_fields(return_value: dict) -> set[str]:
+    """Recursively walk a getItems returnValue and collect every __c field name."""
+    custom_fields: set[str] = set()
+
+    def _walk(obj: object) -> None:
+        if not isinstance(obj, dict):
+            return
+        for key, value in obj.items():
+            if key.endswith("__c"):
+                custom_fields.add(key)
+            if isinstance(value, dict) and value.get("sobjectType") is None:
+                _walk(value)
+            elif isinstance(value, list):
+                for item in value:
+                    _walk(item)
+
+    for result in return_value.get("result", []):
+        _walk(result.get("record", result))
+
+    return custom_fields
+
+
+def write_custom_fields_summary(output_dir: str, object_name: str, fields: set[str]) -> None:
+    """Append custom field names for object_name to custom_fields_summary.txt."""
+    path = os.path.join(output_dir, "custom_fields_summary.txt")
+    exists = os.path.exists(path)
+    os.makedirs(output_dir, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as fh:
+        if not exists:
+            fh.write("Custom Fields Summary\n")
+            fh.write("===================\n\n")
+        fh.write(f"Object: {object_name}\n")
+        fh.write("Custom Fields:\n")
+        for field in sorted(fields):
+            fh.write(f"  - {field}\n")
+        fh.write("\n")
+    logger.debug(f"Custom fields for {object_name} appended to {path}")
 
 
 def download_file(
