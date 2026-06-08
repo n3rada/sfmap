@@ -69,8 +69,8 @@ def _via_rest(client: AuraClient, aura_url: str) -> dict | None:
                 logger.info(f"GraphQL introspection via REST succeeded ({url})")
                 return data
         logger.debug(f"REST GraphQL → HTTP {resp.status_code} (introspection blocked or endpoint requires auth)")
-    except Exception as exc:
-        logger.debug(f"REST GraphQL probe failed: {exc}")
+    except Exception:
+        logger.exception("REST GraphQL probe failed")
     return None
 
 
@@ -106,8 +106,8 @@ def _via_aura(client: AuraClient) -> dict | None:
         except (IndexError, KeyError):
             msg = str(errors)
         logger.debug(f"Aura GraphQL state={action.get('state')}: {msg}")
-    except Exception as exc:
-        logger.debug(f"Aura GraphQL probe failed: {exc}")
+    except Exception:
+        logger.exception("Aura GraphQL probe failed")
     return None
 
 
@@ -211,8 +211,8 @@ def dump_object(
         payload = _gql_dump_payload(object_name, fields, first=page_size, after=after)
         try:
             resp = client.aura_post(payload)
-        except Exception as exc:
-            logger.debug(f"GraphQL dump error {object_name} page {page}: {exc}")
+        except Exception:
+            logger.exception(f"GraphQL dump error {object_name} page {page}")
             break
 
         actions = resp.get("actions", [])
@@ -395,8 +395,8 @@ def query_objects(
             else:
                 logger.debug(f"{obj_name}: 0 records via GraphQL")
 
-        except Exception as exc:
-            logger.debug(f"GraphQL query error for {obj_name}: {exc}")
+        except Exception:
+            logger.exception(f"GraphQL query error for {obj_name}")
 
     hit_count = sum(1 for v in results.values() if v > 0)
     logger.info(f"GraphQL queries complete: {hit_count}/{len(object_names)} object(s) returned data")

@@ -54,8 +54,8 @@ def _get_full_record(client: AuraClient, record_id: str) -> dict | None:
         actions = resp.get("actions", [])
         if actions and actions[0].get("state") == "SUCCESS":
             return actions[0].get("returnValue", {})
-    except Exception as exc:
-        logger.debug(f"getRecord failed for {record_id}: {exc}")
+    except Exception:
+        logger.exception(f"getRecord failed for {record_id}")
     return None
 
 

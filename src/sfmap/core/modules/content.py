@@ -81,8 +81,8 @@ def probe_rest(
             )
             try:
                 resp = http.get(url)
-            except Exception as exc:
-                logger.debug(f"REST probe error for {vid}: {exc}")
+            except Exception:
+                logger.exception(f"REST probe error for {vid}")
                 continue
 
             if resp.status_code == 200:
@@ -197,8 +197,8 @@ def check_content_distribution(
                 )
             else:
                 logger.debug(f"ContentDistribution {dist_id}: HTTP {resp.status_code}")
-        except Exception as exc:
-            logger.debug(f"ContentDistribution URL probe error for {dist_id}: {exc}")
+        except Exception:
+            logger.exception(f"ContentDistribution URL probe error for {dist_id}")
 
     if public_hits:
         logger.warning(

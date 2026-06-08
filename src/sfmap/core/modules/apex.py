@@ -60,8 +60,8 @@ def fuzz(client: AuraClient, wordlist_path: str | Path | None,
 
         try:
             response = client.aura_post(_payload(descriptor))
-        except Exception as e:
-            logger.debug(f"HTTP error on {descriptor}: {e}")
+        except Exception:
+            logger.exception(f"HTTP error on {descriptor}")
             continue
 
         if response.get("exceptionEvent"):

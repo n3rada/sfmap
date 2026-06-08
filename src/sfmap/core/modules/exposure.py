@@ -75,7 +75,7 @@ def check_self_registration(client: AuraClient) -> dict:
 
     except Exception as exc:
         result["error"] = str(exc)
-        logger.debug(f"Self-registration check failed: {exc}")
+        logger.exception("Self-registration check failed")
 
     return result
 
@@ -119,7 +119,7 @@ def check_graphql(client: AuraClient) -> dict:
 
     except Exception as exc:
         result["error"] = str(exc)
-        logger.debug(f"GraphQL check failed: {exc}")
+        logger.exception("GraphQL check failed")
 
     return result
 
@@ -154,7 +154,7 @@ def check_rest_api(client: AuraClient, aura_url: str) -> dict:
 
     except Exception as exc:
         result["error"] = str(exc)
-        logger.debug(f"REST check failed: {exc}")
+        logger.exception("REST check failed")
 
     return result
 
@@ -177,7 +177,7 @@ def check_soap_api(client: AuraClient, aura_url: str) -> dict:
             logger.info("SOAP API endpoint does not appear exposed")
     except Exception as exc:
         result["error"] = str(exc)
-        logger.debug(f"SOAP check failed: {exc}")
+        logger.exception("SOAP check failed")
 
     return result
 
@@ -192,8 +192,8 @@ def discover_custom_controllers(client: AuraClient, aura_url: str) -> dict[str, 
 
     try:
         seed = client.get(app_url)
-    except Exception as exc:
-        logger.debug(f"Custom controller discovery seed failed: {exc}")
+    except Exception:
+        logger.exception("Custom controller discovery seed failed")
         return controllers
 
     text = seed.text
@@ -266,8 +266,8 @@ def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
             result[name] = sc if exists else None
             if exists:
                 logger.info(f"Endpoint exists: {name} → HTTP {sc} ({url})")
-        except Exception as exc:
-            logger.debug(f"Extra endpoint probe error {name}: {exc}")
+        except Exception:
+            logger.exception(f"Extra endpoint probe error {name}")
             result[name] = None
 
     return result
@@ -325,7 +325,7 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
 
     except Exception as exc:
         result["error"] = str(exc)
-        logger.debug(f"Security header check failed: {exc}")
+        logger.exception("Security header check failed")
 
     return result
 
@@ -342,8 +342,8 @@ def check_visualforce(client: AuraClient, aura_url: str) -> dict[str, int]:
             for line in wordlist_text.splitlines()
             if line.strip() and not line.startswith("#")
         ]
-    except Exception as exc:
-        logger.debug(f"VF page wordlist load failed: {exc}")
+    except Exception:
+        logger.exception("VF page wordlist load failed")
         return found
 
     logger.info(f"Visualforce enumeration: {len(names)} page(s) to probe")
@@ -358,8 +358,8 @@ def check_visualforce(client: AuraClient, aura_url: str) -> dict[str, int]:
                 found[name] = sc
             else:
                 logger.debug(f"VF {name}: HTTP {sc}")
-        except Exception as exc:
-            logger.debug(f"VF probe error {name}: {exc}")
+        except Exception:
+            logger.exception(f"VF probe error {name}")
 
     if not found:
         logger.info("Visualforce: no pages found")

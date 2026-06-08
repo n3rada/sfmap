@@ -42,8 +42,8 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     test_url = f"{endpoint}?q={quote_plus('SELECT Id FROM User LIMIT 1')}"
     try:
         resp = client.rest_get(test_url)
-    except Exception as exc:
-        logger.debug(f"REST SOQL probe failed: {exc}")
+    except Exception:
+        logger.exception("REST SOQL probe failed")
         return {}
 
     if resp.status_code not in (200, 201):
@@ -75,8 +75,8 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
             else:
                 logger.debug(f"SOQL {obj_name}: 0 records")
 
-        except Exception as exc:
-            logger.debug(f"SOQL query error for {obj_name}: {exc}")
+        except Exception:
+            logger.exception(f"SOQL query error for {obj_name}")
 
     summary_path = os.path.join(output_dir, "soql_summary.json")
     with open(summary_path, "w", encoding="utf-8") as fh:

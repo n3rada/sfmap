@@ -41,8 +41,8 @@ def _probe(client: AuraClient, flow_name: str) -> dict | None:
     }
     try:
         resp = client.aura_post(payload)
-    except Exception as exc:
-        logger.debug(f"Flow probe error {flow_name}: {exc}")
+    except Exception:
+        logger.exception(f"Flow probe error {flow_name}")
         return None
 
     actions = resp.get("actions", [])

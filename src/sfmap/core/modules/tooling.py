@@ -40,8 +40,8 @@ def _query_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
     while url:
         try:
             resp = client.rest_get(url)
-        except Exception as exc:
-            logger.debug(f"Tooling query error: {exc}")
+        except Exception:
+            logger.exception("Tooling query error")
             break
         if resp.status_code != 200:
             logger.debug(f"Tooling query HTTP {resp.status_code}")
@@ -65,8 +65,8 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     probe = f"{endpoint}?q={quote_plus('SELECT Id FROM ApexClass LIMIT 1')}"
     try:
         resp = client.rest_get(probe)
-    except Exception as exc:
-        logger.debug(f"Tooling API probe failed: {exc}")
+    except Exception:
+        logger.exception("Tooling API probe failed")
         return {}
 
     if resp.status_code not in (200, 201):

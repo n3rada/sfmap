@@ -76,7 +76,11 @@ def get_items(
     """Returns returnValue dict for a single page, or None on failure."""
     mode = "guest" if client.is_guest else "authenticated"
     payload = _payload_get_items(object_name, page_size, page)
-    response = client.aura_post(payload)
+    try:
+        response = client.aura_post(payload)
+    except Exception:
+        logger.exception(f"get_items {object_name} failed")
+        return None
 
     if response.get("exceptionEvent"):
         logger.debug(f"Aura exception for {object_name} ({mode} mode)")

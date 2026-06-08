@@ -66,8 +66,8 @@ def _check_file_upload(client: AuraClient, aura_url: str) -> dict | None:
             logger.warning(f"IP leak: {ip} via {endpoint} (HTTP {resp.status_code})")
         return finding
 
-    except Exception as exc:
-        logger.debug(f"Chatter file/body probe failed: {exc}")
+    except Exception:
+        logger.exception("Chatter file/body probe failed")
         return None
 
 
@@ -110,8 +110,8 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> d
             out_path = os.path.join(output_dir, f"rest_{safe_name}.json")
             with open(out_path, "w", encoding="utf-8") as fh:
                 fh.write(json.dumps(data, ensure_ascii=False, indent=2))
-        except Exception as exc:
-            logger.debug(f"Chatter REST probe error for {path}: {exc}")
+        except Exception:
+            logger.exception(f"Chatter REST probe error for {path}")
 
     return found
 

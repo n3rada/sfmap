@@ -120,8 +120,8 @@ def probe_getitems(
                 logger.debug(
                     f"{object_name} | {payload!r} → count={injected_count} state={state}"
                 )
-        except Exception as exc:
-            logger.debug(f"{object_name} injection probe error: {exc}")
+        except Exception:
+            logger.exception(f"{object_name} injection probe error")
 
     return findings
 
@@ -157,8 +157,8 @@ def probe_apex(
                             f"param={param!r} payload={payload!r} → SUCCESS"
                         )
                         findings.append(finding)
-                except Exception as exc:
-                    logger.debug(f"Apex injection probe error: {exc}")
+                except Exception:
+                    logger.exception("Apex injection probe error")
 
     return findings
 

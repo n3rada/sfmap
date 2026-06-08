@@ -48,8 +48,8 @@ def _fetch(client: AuraClient, base: str, name: str) -> tuple[int, bytes]:
             resp = client.get(url)
             if resp.status_code == 200:
                 return 200, resp.content
-        except Exception as exc:
-            logger.debug(f"StaticResource fetch error {name}: {exc}")
+        except Exception:
+            logger.exception(f"StaticResource fetch error {name}")
     return 404, b""
 
 

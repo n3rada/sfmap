@@ -144,8 +144,8 @@ def probe_guest(
                         "object_type": _OBJECT_PREFIXES.get(record_id[:3]),
                         "return_value_keys": rv_keys,
                     })
-            except Exception as exc:
-                logger.debug(f"IDOR probe error for {record_id}: {exc}")
+            except Exception:
+                logger.exception(f"IDOR probe error for {record_id}")
 
     if findings:
         os.makedirs(output_dir, exist_ok=True)

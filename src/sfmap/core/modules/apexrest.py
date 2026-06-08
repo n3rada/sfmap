@@ -83,8 +83,8 @@ def fuzz(
                 else:
                     logger.info(f"ApexREST {method} /{name}: HTTP {sc}")
 
-            except Exception as exc:
-                logger.debug(f"ApexREST probe error {method} {name}: {exc}")
+            except Exception:
+                logger.exception(f"ApexREST probe error {method} {name}")
 
     if hits:
         os.makedirs(output_dir, exist_ok=True)
