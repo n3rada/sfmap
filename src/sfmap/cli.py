@@ -14,7 +14,7 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, relatedlist, soql, staticresource
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, relatedlist, soql, staticresource, tooling
 from .core.utils import common, logbook, storage
 
 
@@ -267,6 +267,14 @@ def cmd_chatter(args: argparse.Namespace) -> int:
     return 1 if findings else 0
 
 
+def cmd_graphql_dump(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        nodes = graphql.dump_object(client, args.object, args.fields, output_dir)
+    return 1 if nodes else 0
+
+
 def cmd_graphql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -382,6 +390,14 @@ def cmd_soql_query(args: argparse.Namespace) -> int:
     soql_dir = os.path.join(output_dir, "soql")
     with AuraClient(session) as client:
         results = soql.run(client, session.url, soql_dir)
+    return 1 if results else 0
+
+
+def cmd_tooling_query(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        results = tooling.run(client, session.url, output_dir)
     return 1 if results else 0
 
 
@@ -648,6 +664,21 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_args(p_cd)
     p_cd.set_defaults(func=cmd_content_download)
 
+    p_gql_d = rest_sub.add_parser(
+        "graphql-dump",
+        help="Dump all records of an object via GraphQL with specified field values",
+    )
+    _add_common_args(p_gql_d)
+    p_gql_d.add_argument("object", metavar="OBJECT", help="Salesforce object API name (e.g. User, Knowledge__kav)")
+    p_gql_d.add_argument(
+        "--fields",
+        nargs="+",
+        required=True,
+        metavar="FIELD",
+        help="Fields to retrieve using dot notation (e.g. Name Email Profile.Name). Scalars are wrapped in { value } automatically.",
+    )
+    p_gql_d.set_defaults(func=cmd_graphql_dump)
+
     p_gql = rest_sub.add_parser(
         "graphql-introspect",
         help="Run GraphQL introspection and save schema to output directory",
@@ -710,6 +741,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_soql)
     p_soql.set_defaults(func=cmd_soql_query)
+
+    p_tooling = rest_sub.add_parser(
+        "tooling-query",
+        help="Dump Apex class/trigger/page source via Tooling API (requires Bearer token)",
+    )
+    _add_common_args(p_tooling)
+    p_tooling.set_defaults(func=cmd_tooling_query)
 
     # -- surface group -------------------------------------------------------
     p_surface = surfaces.add_parser("surface", help="Cross-surface mapping")

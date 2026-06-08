@@ -386,6 +386,20 @@ Output: `soql/soql_{ObjectName}.json` per accessible object, `soql/soql_summary.
 
 ---
 
+### `rest tooling-query`
+
+Dump Apex source code (classes, triggers, pages, components) via the Salesforce Tooling API. Requires an OAuth Bearer token — community sessions are blocked at the platform level.
+
+```bash
+sfmap target.my.site.com --bearer @bearer.txt rest tooling-query
+```
+
+Queries: `ApexClass` (Id, Name, Status, Body), `ApexTrigger` (Id, Name, TableEnumOrId, Status, Body), `ApexPage` (Id, Name, Markup), `ApexComponent` (Id, Name, Markup).
+
+Output: `tooling/tooling_{Type}.json` per accessible type.
+
+---
+
 ### `surface exposure`
 
 Run all cross-surface checks in one command:
@@ -447,6 +461,8 @@ aura_{host}_{path}/
 ├── soql/
 │   ├── soql_summary.json
 │   └── soql_{Object}.json
+├── tooling/
+│   └── tooling_{Type}.json
 └── downloads/
     └── {filename}             # Binary files
 ```

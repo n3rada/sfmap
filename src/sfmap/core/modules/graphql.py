@@ -145,6 +145,119 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
     return True
 
 
+def _fields_to_gql(fields: list[str]) -> str:
+    """
+    Convert dot-notation field specs to GraphQL fragment strings.
+    "Name"         → "Name { value }"
+    "Profile.Name" → "Profile { Name { value } }"
+    """
+    def _wrap(parts: list[str]) -> str:
+        if len(parts) == 1:
+            return f"{parts[0]} {{ value }}"
+        return f"{parts[0]} {{ {_wrap(parts[1:])} }}"
+
+    return " ".join(_wrap(f.split(".")) for f in fields)
+
+
+def _gql_dump_payload(
+    object_name: str,
+    fields: list[str],
+    first: int = 200,
+    after: str | None = None,
+) -> dict:
+    op_name = f"Dump{object_name.replace('__', '')}"
+    cursor_arg = f', after: "{after}"' if after else ""
+    field_frag = _fields_to_gql(fields)
+    query = (
+        f"query {op_name} {{ uiapi {{ query {{ "
+        f"{object_name}(first: {first}{cursor_arg}) {{ "
+        f"totalCount edges {{ node {{ Id {field_frag} }} }} "
+        f"pageInfo {{ hasNextPage endCursor }} }} }} }} }}"
+    )
+    return {
+        "actions": [{
+            "id": "gql;d",
+            "descriptor": "aura://RecordUiController/ACTION$executeGraphQL",
+            "callingDescriptor": "UNKNOWN",
+            "params": {
+                "queryInput": {
+                    "operationName": op_name,
+                    "query": query,
+                    "variables": {},
+                }
+            },
+        }]
+    }
+
+
+def dump_object(
+    client: AuraClient,
+    object_name: str,
+    fields: list[str],
+    output_dir: str,
+    page_size: int = 200,
+) -> list[dict]:
+    """
+    Query *object_name* via GraphQL uiapi requesting *fields* (dot notation).
+    Paginates until exhausted. Returns all node dicts.
+    Saves raw pages to output_dir/graphql_dump_{object_name}.json.
+    """
+    all_nodes: list[dict] = []
+    after: str | None = None
+    page = 0
+
+    while True:
+        page += 1
+        payload = _gql_dump_payload(object_name, fields, first=page_size, after=after)
+        try:
+            resp = client.aura_post(payload)
+        except Exception as exc:
+            logger.debug(f"GraphQL dump error {object_name} page {page}: {exc}")
+            break
+
+        actions = resp.get("actions", [])
+        if not actions or actions[0].get("state") != "SUCCESS":
+            logger.debug(f"{object_name}: GraphQL dump failed on page {page}")
+            break
+
+        rv = actions[0].get("returnValue", {})
+        gql_errors = rv.get("errors") or []
+        if gql_errors:
+            for e in gql_errors:
+                logger.warning(f"{object_name}: GraphQL error: {e.get('message', '')}")
+            break
+
+        obj_data = (
+            rv.get("data", {})
+              .get("uiapi", {})
+              .get("query", {})
+              .get(object_name, {})
+        )
+        total = obj_data.get("totalCount", 0)
+        edges = obj_data.get("edges", [])
+        nodes = [e.get("node", {}) for e in edges]
+        all_nodes.extend(nodes)
+
+        page_info = obj_data.get("pageInfo", {})
+        logger.debug(f"{object_name}: page {page}, got {len(nodes)} records (total={total})")
+
+        if not page_info.get("hasNextPage"):
+            break
+        after = page_info.get("endCursor")
+
+    if all_nodes:
+        logger.warning(f"{object_name}: {len(all_nodes)} record(s) accessible via GraphQL dump")
+        os.makedirs(output_dir, exist_ok=True)
+        path = os.path.join(output_dir, f"graphql_dump_{object_name}.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(all_nodes, ensure_ascii=False, indent=2))
+        logger.info(f"Saved to {path}")
+    else:
+        logger.info(f"{object_name}: no records returned")
+
+    return all_nodes
+
+
 def _gql_query_payload(object_name: str, first: int = 200, after: str | None = None) -> dict:
     op_name = f"Query{object_name}"
     cursor_arg = f', after: "{after}"' if after else ""
