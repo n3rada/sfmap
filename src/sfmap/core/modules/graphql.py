@@ -165,7 +165,7 @@ def _gql_dump_payload(
     first: int = 200,
     after: str | None = None,
 ) -> dict:
-    op_name = f"Dump{object_name.replace('__', '')}"
+    op_name = f"Query{object_name.replace('__', '')}"
     cursor_arg = f', after: "{after}"' if after else ""
     field_frag = _fields_to_gql(fields)
     query = (
