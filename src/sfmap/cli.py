@@ -53,12 +53,14 @@ def _build_session(args: argparse.Namespace) -> Session:
 
     token = _resolve_file_arg(getattr(args, "token", None), "token.txt") or "undefined"
     cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt")
+    bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt")
 
     return Session(
         url=url,
         context=context,
         token=token,
         cookie=cookie,
+        bearer_token=bearer,
     )
 
 
@@ -381,6 +383,16 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
         "-o",
         metavar="DIR",
         help="Output directory (default: derived from URL)",
+    )
+    parser.add_argument(
+        "--bearer",
+        default=None,
+        metavar="VALUE|@FILE",
+        help=(
+            "OAuth Bearer token for REST API access (internal user session). "
+            "Defaults to @bearer.txt if present. Required for soql-query, "
+            "tooling, and bulk API surfaces."
+        ),
     )
 
 

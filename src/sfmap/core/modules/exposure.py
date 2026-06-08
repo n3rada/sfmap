@@ -260,9 +260,9 @@ def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
     for name, url in probes.items():
         try:
             if "token" in name:
-                resp = client._http.post(url, data={"grant_type": "client_credentials"})
+                resp = client.rest_post(url, data={"grant_type": "client_credentials"})
             else:
-                resp = client._http.get(url)
+                resp = client.rest_get(url)
             sc = resp.status_code
             exists = sc != 404
             result[name] = sc if exists else None

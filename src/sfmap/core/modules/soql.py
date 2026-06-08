@@ -43,13 +43,14 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
 
     test_url = f"{endpoint}?q={quote_plus('SELECT Id FROM User LIMIT 1')}"
     try:
-        resp = client._http.get(test_url)
+        resp = client.rest_get(test_url)
     except Exception as exc:
         logger.debug(f"REST SOQL probe failed: {exc}")
         return {}
 
     if resp.status_code not in (200, 201):
-        logger.info(f"REST SOQL endpoint not accessible (HTTP {resp.status_code})")
+        hint = " (pass --bearer for OAuth access)" if not client.has_bearer else ""
+        logger.info(f"REST SOQL endpoint not accessible (HTTP {resp.status_code}){hint}")
         return {}
 
     logger.warning(f"REST SOQL endpoint accessible — running probe queries")
@@ -60,7 +61,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     for obj_name, query in _PROBE_QUERIES:
         url = f"{endpoint}?q={quote_plus(query)}"
         try:
-            resp = client._http.get(url)
+            resp = client.rest_get(url)
             if resp.status_code != 200:
                 logger.debug(f"SOQL {obj_name}: HTTP {resp.status_code}")
                 continue

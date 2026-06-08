@@ -12,6 +12,7 @@ class Session:
     token: str = "undefined"  # aura.token raw string; "undefined" = unauthenticated
     cookie: str | None = None  # Raw Cookie header value
     guest_mode: bool = False  # Explicit guest assessment mode flag
+    bearer_token: str | None = None  # OAuth Bearer token for REST API access
 
     @property
     def is_guest(self) -> bool:

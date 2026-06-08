@@ -56,9 +56,9 @@ def fuzz(
             logger.debug(f"[{i}/{len(names)}] {method} {url}")
             try:
                 if method == "GET":
-                    resp = client._http.get(url)
+                    resp = client.rest_get(url)
                 else:
-                    resp = client._http.post(url, json={})
+                    resp = client.rest_post(url, json={})
 
                 sc = resp.status_code
                 if sc == 404:

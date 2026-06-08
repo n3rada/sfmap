@@ -58,6 +58,24 @@ class AuraClient:
     def get(self, url: str, follow_redirects: bool = True) -> "httpx.Response":
         return self._http.get(url, follow_redirects=follow_redirects)
 
+    def rest_get(self, url: str) -> "httpx.Response":
+        """GET with OAuth Bearer header when a bearer_token is configured."""
+        headers = {}
+        if self._session.bearer_token:
+            headers["Authorization"] = f"Bearer {self._session.bearer_token}"
+        return self._http.get(url, headers=headers)
+
+    def rest_post(self, url: str, **kwargs) -> "httpx.Response":
+        """POST with OAuth Bearer header when a bearer_token is configured."""
+        headers = kwargs.pop("headers", {})
+        if self._session.bearer_token:
+            headers["Authorization"] = f"Bearer {self._session.bearer_token}"
+        return self._http.post(url, headers=headers, **kwargs)
+
+    @property
+    def has_bearer(self) -> bool:
+        return bool(self._session.bearer_token)
+
     def close(self) -> None:
         self._http.close()
 
