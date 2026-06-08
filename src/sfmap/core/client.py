@@ -5,6 +5,7 @@ import json
 
 # Third-party imports
 import httpx
+from loguru import logger
 
 # Local imports
 from .session import Session
@@ -28,6 +29,8 @@ class AuraClient:
             authenticated = not session.is_guest
         self._authenticated = authenticated
         self._guest_mode = not authenticated
+        if self._guest_mode:
+            logger.debug("AuraClient: running as unauthenticated guest (no credentials)")
         self._http = httpx.Client(
             verify=verify_ssl,
             cookies=session.cookies_dict if authenticated else {},

@@ -67,7 +67,7 @@ sfmap target.my.site.com -C @/path/ctx.json <surface> <action> \
   -T @/path/token.txt --cookie @/path/cookies.txt
 ```
 
-**Unauthenticated mode:** if no credentials are found (token file absent or contains `undefined`, no cookie), every command runs as a guest automatically. Output is identical — no separate guest surface is needed.
+**Unauthenticated mode:** if no credentials are found (token file absent or contains `undefined`, no cookie file), every command runs as an unauthenticated guest automatically. There is no separate guest surface — the same commands work in both modes and output goes to the same directory. To force guest mode explicitly from a directory that has credentials, pass `-T undefined --cookie @/nonexistent`.
 
 **Token lifetime:** `aura.token` uses session-based expiry (not a hard timestamp). A token from an active browser session covers a full assessment. If requests return `Invalid token`, capture a fresh one.
 
@@ -465,25 +465,25 @@ All output is written to a directory derived from the target URL (override with 
 
 ```
 aura_{host}_{path}/
-├── config_data.json           # Cached object list (aura objects)
-├── exposure_summary.json      # surface exposure results
-├── crud_probe.json            # aura crud results
-├── injection_findings.json    # aura inject results
-├── idor_findings.json         # aura idor results
-├── apexrest_hits.json         # rest apexrest results
+├── config_data.json             # Cached object list (aura objects)
+├── exposure_summary.json        # surface exposure results
+├── crud_probe.json              # aura crud results
+├── injection_findings.json      # aura inject results
+├── idor_findings.json           # aura idor results
+├── apexrest_hits.json           # rest apexrest results
 ├── staticresource_summary.json  # rest static results
-├── staticresource_*.bin       # downloaded static resource files
-├── network_config.json        # aura network results
-├── flow_hits.json             # aura flow results
-├── objectinfo_{Object}.json   # aura info per object
-├── {Object}__page{N}.json     # aura dump pages
+├── staticresource_*.bin         # downloaded static resource files
+├── network_config.json          # aura network results
+├── flow_hits.json               # aura flow results
+├── objectinfo_{Object}.json     # aura info per object
+├── {Object}__page{N}.json       # aura dump pages
+├── graphql_dump_{Object}.json   # rest graphql dump output
 ├── chatter/
 │   ├── chatter_summary.json
 │   └── rest_*.json
 ├── graphql/
-│   ├── graphql_schema.json
-│   ├── graphql_{Object}.json
-│   └── graphql_dump_{Object}.json
+│   ├── graphql_schema.json      # rest graphql introspect
+│   └── graphql_{Object}.json    # rest graphql query hits
 ├── soql/
 │   ├── soql_summary.json
 │   └── soql_{Object}.json
@@ -492,6 +492,8 @@ aura_{host}_{path}/
 └── downloads/
     └── {filename}
 ```
+
+Unauthenticated runs write to the same directory structure. Authenticated and unauthenticated output can be compared by running with and without credentials.
 
 ---
 
