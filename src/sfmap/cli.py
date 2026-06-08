@@ -14,7 +14,7 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, soql, staticresource
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, relatedlist, soql, staticresource
 from .core.utils import common, logbook, storage
 
 
@@ -325,6 +325,19 @@ def cmd_object_info(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_related_lists(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        results = relatedlist.probe(
+            client,
+            args.record_id,
+            output_dir,
+            object_api_name=getattr(args, "object", None),
+        )
+    return 1 if any(v > 0 for v in results.values()) else 0
+
+
 def cmd_idor_probe(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -552,6 +565,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_idor)
     p_idor.set_defaults(func=cmd_idor_probe)
+
+    p_rl = aura_sub.add_parser(
+        "related-lists",
+        help="Enumerate and probe all child relationships on a record via getRecords",
+    )
+    _add_common_args(p_rl)
+    p_rl.add_argument("record_id", metavar="RECORD_ID", help="Salesforce record ID to probe")
+    p_rl.add_argument(
+        "--object",
+        default=None,
+        metavar="OBJECT_API_NAME",
+        help="Object API name (optional — resolved automatically via getRecord if omitted)",
+    )
+    p_rl.set_defaults(func=cmd_related_lists)
 
     p_crud = aura_sub.add_parser(
         "crud-probe",

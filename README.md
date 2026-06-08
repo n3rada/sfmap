@@ -229,6 +229,21 @@ Output: `injection_findings.json`.
 
 ---
 
+### `aura related-lists RECORD_ID [--object OBJECT_API_NAME]`
+
+Enumerate every child relationship on a record and probe each via `RelatedListContainerDataProviderController/ACTION$getRecords`. This is a distinct data access vector from `getItems` — child records reachable through a relationship may be accessible even when direct enumeration of the child object is denied.
+
+The object API name is resolved automatically from the record via `getRecord`. Pass `--object` to skip that round-trip if the type is already known.
+
+```bash
+sfmap target.my.site.com aura related-lists a0cAP000004q1k5YAA
+sfmap target.my.site.com aura related-lists a0cAP000004q1k5YAA --object DownloadRequest__c
+```
+
+Output: `relatedlists_{RECORD_ID}.json` in the output directory.
+
+---
+
 ### `aura idor-probe`
 
 Test whether `getRecord` (Aura) returns actual field data for authenticated records when queried as an unauthenticated guest. Collects record IDs from the authenticated output directory, subtracts IDs already known to be guest-accessible, then probes the remainder against a guest session.
