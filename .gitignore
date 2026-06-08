@@ -9,6 +9,7 @@ aura_*/
 
 # VSCode
 .vscode/
+.claude/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
