@@ -164,10 +164,14 @@ def check_content_distribution(
         for field_name, field_val in fields.items():
             low = field_name.lower()
             if "public" in low and "url" in low:
-                pub_url = field_val.get("value") if isinstance(field_val, dict) else field_val
+                pub_url = (
+                    field_val.get("value") if isinstance(field_val, dict) else field_val
+                )
                 break
             if "distributionpublicurl" in low or "contentdownloadurl" in low:
-                pub_url = field_val.get("value") if isinstance(field_val, dict) else field_val
+                pub_url = (
+                    field_val.get("value") if isinstance(field_val, dict) else field_val
+                )
                 break
 
         if not pub_url and dist_id:
@@ -180,20 +184,26 @@ def check_content_distribution(
             with httpx.Client(verify=False, follow_redirects=True, timeout=10) as http:
                 resp = http.get(pub_url)
             if resp.status_code == 200:
-                logger.warning(f"ContentDistribution public URL accessible: {pub_url} ({len(resp.content):,} bytes)")
-                public_hits.append({
-                    "id": dist_id,
-                    "url": pub_url,
-                    "status": resp.status_code,
-                    "size": len(resp.content),
-                })
+                logger.warning(
+                    f"ContentDistribution public URL accessible: {pub_url} ({len(resp.content):,} bytes)"
+                )
+                public_hits.append(
+                    {
+                        "id": dist_id,
+                        "url": pub_url,
+                        "status": resp.status_code,
+                        "size": len(resp.content),
+                    }
+                )
             else:
                 logger.debug(f"ContentDistribution {dist_id}: HTTP {resp.status_code}")
         except Exception as exc:
             logger.debug(f"ContentDistribution URL probe error for {dist_id}: {exc}")
 
     if public_hits:
-        logger.warning(f"ContentDistribution: {len(public_hits)} publicly accessible file(s)")
+        logger.warning(
+            f"ContentDistribution: {len(public_hits)} publicly accessible file(s)"
+        )
     else:
         logger.info("ContentDistribution: no publicly accessible files found")
 
