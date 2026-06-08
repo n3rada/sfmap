@@ -241,6 +241,40 @@ _SECURITY_HEADERS = [
 ]
 
 
+def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
+    """
+    Inventory additional REST surfaces: OAuth, CometD, Tooling, Bulk.
+    Just records which endpoints exist (non-404) — access may require OAuth.
+    """
+    base = _base_url(aura_url)
+    probes = {
+        "oauth_authorize": f"{base}/services/oauth2/authorize",
+        "oauth_token": f"{base}/services/oauth2/token",
+        "cometd": f"{base}/cometd/59.0/",
+        "tooling_api": f"{base}/services/data/{_REST_API_VERSION}/tooling/",
+        "bulk_api": f"{base}/services/data/{_REST_API_VERSION}/jobs/ingest",
+        "metadata_wsdl": f"{base}/services/Soap/m/{_REST_API_VERSION}",
+    }
+    result: dict[str, int | None] = {}
+
+    for name, url in probes.items():
+        try:
+            if "token" in name:
+                resp = client._http.post(url, data={"grant_type": "client_credentials"})
+            else:
+                resp = client._http.get(url)
+            sc = resp.status_code
+            exists = sc != 404
+            result[name] = sc if exists else None
+            if exists:
+                logger.info(f"Endpoint exists: {name} → HTTP {sc} ({url})")
+        except Exception as exc:
+            logger.debug(f"Extra endpoint probe error {name}: {exc}")
+            result[name] = None
+
+    return result
+
+
 def check_security_headers(client: AuraClient, aura_url: str) -> dict:
     """Check for presence and quality of HTTP security headers."""
     app_url = _infer_app_url(aura_url)
@@ -263,6 +297,7 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
         csp = resp.headers.get("Content-Security-Policy", "")
         xfo = resp.headers.get("X-Frame-Options", "")
         hsts = resp.headers.get("Strict-Transport-Security", "")
+        acao = resp.headers.get("Access-Control-Allow-Origin", "")
 
         if not csp:
             result["weaknesses"].append("No Content-Security-Policy — XSS risk unmitigated")
@@ -277,6 +312,12 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
 
         if not hsts:
             result["weaknesses"].append("No HSTS — SSL stripping possible")
+
+        if acao == "*":
+            result["weaknesses"].append("CORS Access-Control-Allow-Origin: * — any origin can read responses")
+            result["present"]["Access-Control-Allow-Origin"] = acao
+        elif acao:
+            result["present"]["Access-Control-Allow-Origin"] = acao
 
         if result["weaknesses"]:
             for w in result["weaknesses"]:
@@ -382,6 +423,7 @@ def run(client: AuraClient, session: Session, output_dir: str | None = None) -> 
         "security_headers": check_security_headers(client, session.url),
         "visualforce": check_visualforce(client, session.url),
         "network_config": check_network_config(client),
+        "extra_endpoints": check_extra_endpoints(client, session.url),
     }
 
     if output_dir:

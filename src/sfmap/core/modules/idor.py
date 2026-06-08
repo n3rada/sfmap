@@ -128,15 +128,21 @@ def probe_guest(
                 actions = resp.get("actions", [])
                 if actions and actions[0].get("state") == "SUCCESS":
                     rv = actions[0].get("returnValue", {})
+                    # onLoadErrorMessage-only response = record exists but data is blocked
+                    # (proper sharing rules). Only flag when actual field data is returned.
+                    rv_keys = list(rv.keys()) if isinstance(rv, dict) else []
+                    if rv_keys == ["onLoadErrorMessage"] or not rv_keys:
+                        logger.debug(f"Record {record_id}: exists but data blocked (guest denied)")
+                        continue
                     logger.warning(
-                        f"IDOR — record {record_id} accessible as guest "
-                        f"(prefix={record_id[:3]})"
+                        f"IDOR — record {record_id} data accessible as guest "
+                        f"(prefix={record_id[:3]}, fields={rv_keys[:5]})"
                     )
                     findings.append({
                         "id": record_id,
                         "prefix": record_id[:3],
                         "object_type": _OBJECT_PREFIXES.get(record_id[:3]),
-                        "return_value_keys": list(rv.keys()) if isinstance(rv, dict) else [],
+                        "return_value_keys": rv_keys,
                     })
             except Exception as exc:
                 logger.debug(f"IDOR probe error for {record_id}: {exc}")
