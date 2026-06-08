@@ -360,8 +360,7 @@ def cmd_static_resources(args: argparse.Namespace) -> int:
     output_dir = args.output or common.default_output_dir(args.url)
     with AuraClient(session) as client:
         hits = staticresource.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
-    sensitive = sum(len(h.get("sensitive_findings", [])) for h in hits)
-    return 1 if sensitive else (0 if not hits else 0)
+    return 1 if hits else 0
 
 
 def cmd_soql_query(args: argparse.Namespace) -> int:

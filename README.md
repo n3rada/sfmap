@@ -327,22 +327,14 @@ Output: `chatter/chatter_summary.json`.
 
 ### `rest static-resources [-w wordlist]`
 
-Enumerate Salesforce static resources and scan their content for hardcoded secrets. First attempts to list `StaticResource` records via Aura `getItems` to get actual names. Falls back to wordlist fuzzing if the object is not accessible.
-
-Downloads each accessible resource and inspects content (including ZIP archives) for:
-
-- AWS access keys
-- Private keys (`BEGIN RSA/EC PRIVATE KEY`)
-- JWT tokens
-- URLs with embedded credentials
-- Hardcoded API keys and passwords
+Enumerate and download Salesforce static resources. First attempts to list `StaticResource` records via Aura `getItems` to get actual names. Falls back to wordlist fuzzing if the object is not accessible.
 
 ```bash
 sfmap target.my.site.com rest static-resources
 sfmap target.my.site.com rest static-resources -w ./custom_resources.txt
 ```
 
-Output: `staticresource_*.bin` (raw downloads) and `staticresource_summary.json` in the output directory.
+Output: `staticresource_*.bin` (raw downloads) and `staticresource_summary.json` in the output directory. Run trufflehog or similar against the downloads directory for credential detection.
 
 ---
 
