@@ -7,9 +7,7 @@ from urllib.parse import urlparse
 from loguru import logger
 
 # Local imports
-from ..client import AuraClient
-
-_REST_API_VERSION = "v59.0"
+from ..client import AuraClient, REST_API_VERSION
 
 _INTROSPECTION_QUERY = """
 {
@@ -58,7 +56,7 @@ def _base_url(aura_url: str) -> str:
 
 def _via_rest(client: AuraClient, aura_url: str) -> dict | None:
     """Try standard GraphQL introspection via the direct REST endpoint."""
-    url = f"{_base_url(aura_url)}/services/data/{_REST_API_VERSION}/graphql"
+    url = f"{_base_url(aura_url)}/services/data/{REST_API_VERSION}/graphql"
     try:
         resp = client._http.post(
             url,

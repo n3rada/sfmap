@@ -7,9 +7,7 @@ from urllib.parse import quote_plus, urlparse
 from loguru import logger
 
 # Local imports
-from ..client import AuraClient
-
-_REST_API_VERSION = "v59.0"
+from ..client import AuraClient, REST_API_VERSION
 
 _PROBE_QUERIES: list[tuple[str, str]] = [
     ("User", "SELECT Id, Username, Email, Name, IsActive FROM User LIMIT 50"),
@@ -39,7 +37,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     Returns {object_name: record_count} for each successful query.
     """
     base = _base_url(aura_url)
-    endpoint = f"{base}/services/data/{_REST_API_VERSION}/query"
+    endpoint = f"{base}/services/data/{REST_API_VERSION}/query"
 
     test_url = f"{endpoint}?q={quote_plus('SELECT Id FROM User LIMIT 1')}"
     try:

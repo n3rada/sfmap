@@ -7,12 +7,10 @@ from urllib.parse import urljoin, urlparse
 from loguru import logger
 
 # Local imports
-from ..client import AuraClient
+from ..client import AuraClient, REST_API_VERSION
 from ..session import Session
 from ..utils import storage
 from . import dump
-
-_REST_API_VERSION = "v59.0"
 
 
 def _base_url(aura_url: str) -> str:
@@ -169,7 +167,7 @@ def check_soap_api(client: AuraClient, aura_url: str) -> dict:
         "error": None,
     }
     try:
-        resp = client.get(f"{base}/services/Soap/u/{_REST_API_VERSION}")
+        resp = client.get(f"{base}/services/Soap/u/{REST_API_VERSION}")
         result["status_code"] = resp.status_code
         content_type = (resp.headers.get("Content-Type") or "").lower()
         result["exposed"] = resp.status_code in (200, 500) and "xml" in content_type
@@ -251,9 +249,9 @@ def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
         "oauth_authorize": f"{base}/services/oauth2/authorize",
         "oauth_token": f"{base}/services/oauth2/token",
         "cometd": f"{base}/cometd/59.0/",
-        "tooling_api": f"{base}/services/data/{_REST_API_VERSION}/tooling/",
-        "bulk_api": f"{base}/services/data/{_REST_API_VERSION}/jobs/ingest",
-        "metadata_wsdl": f"{base}/services/Soap/m/{_REST_API_VERSION}",
+        "tooling_api": f"{base}/services/data/{REST_API_VERSION}/tooling/",
+        "bulk_api": f"{base}/services/data/{REST_API_VERSION}/jobs/ingest",
+        "metadata_wsdl": f"{base}/services/Soap/m/{REST_API_VERSION}",
     }
     result: dict[str, int | None] = {}
 

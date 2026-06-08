@@ -9,10 +9,8 @@ from urllib.parse import urlparse
 from loguru import logger
 
 # Local imports
-from ..client import AuraClient
+from ..client import AuraClient, REST_API_VERSION
 from . import dump
-
-_REST_API_VERSION = "v59.0"
 
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
 _PRIVATE_RE = re.compile(r'^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.)')
@@ -92,9 +90,9 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> d
     """Probe Chatter REST feed endpoints."""
     base = _base_url(aura_url)
     endpoints = [
-        f"/services/data/{_REST_API_VERSION}/chatter/feeds/news/me/feed-elements",
-        f"/services/data/{_REST_API_VERSION}/chatter/feed-items",
-        f"/services/data/{_REST_API_VERSION}/chatter/users/me",
+        f"/services/data/{REST_API_VERSION}/chatter/feeds/news/me/feed-elements",
+        f"/services/data/{REST_API_VERSION}/chatter/feed-items",
+        f"/services/data/{REST_API_VERSION}/chatter/users/me",
     ]
     found: dict[str, int] = {}
 

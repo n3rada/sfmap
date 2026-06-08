@@ -6,11 +6,8 @@ import httpx
 from loguru import logger
 
 # Local imports
-from ..client import AuraClient
+from ..client import AuraClient, REST_API_VERSION
 from . import dump
-
-# Salesforce REST API version used for the VersionData probe.
-_REST_API_VERSION = "v59.0"
 
 
 def _extract_ids(rv: dict) -> list[str]:
@@ -79,7 +76,7 @@ def probe_rest(
     with httpx.Client(verify=verify_ssl, follow_redirects=False) as http:
         for vid in version_ids:
             url = (
-                f"{api_base}/services/data/{_REST_API_VERSION}"
+                f"{api_base}/services/data/{REST_API_VERSION}"
                 f"/sobjects/ContentVersion/{vid}/VersionData"
             )
             try:
@@ -235,7 +232,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
             parsed = urlparse(aura_url)
             logger.warning(
                 f"  GET {parsed.scheme}://{parsed.netloc}"
-                f"/services/data/{_REST_API_VERSION}"
+                f"/services/data/{REST_API_VERSION}"
                 f"/sobjects/ContentVersion/{vid}/VersionData"
             )
     else:
