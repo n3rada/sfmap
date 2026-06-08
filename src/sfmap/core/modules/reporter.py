@@ -25,218 +25,254 @@ def _h(text: str) -> str:
 
 def _css() -> str:
     return """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
 :root {
-  --bg: #f1f5f9;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
-  --header-bg: #0f172a;
-  --header-text: #f8fafc;
-  --code-bg: #f8fafc;
-  --row-hover: #f8fafc;
-  --shadow: 0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
-  --shadow-md: 0 4px 6px rgba(15,23,42,.07), 0 2px 4px rgba(15,23,42,.05);
-  --radius: 10px;
-  --radius-sm: 6px;
+  --white:       #ffffff;
+  --bg:          #f5f7fa;
+  --border:      #e4e8ef;
+  --border-soft: #edf0f5;
+  --text:        #0d1117;
+  --text-2:      #4b5563;
+  --text-3:      #9ca3af;
+  --accent:      #2563eb;
+  --accent-soft: #eff6ff;
+  --code-bg:     #f0f2f5;
+  --radius:      12px;
+  --radius-sm:   7px;
+  --shadow-sm:   0 1px 2px rgba(13,17,23,.04);
+  --shadow:      0 2px 8px rgba(13,17,23,.07), 0 1px 2px rgba(13,17,23,.04);
+  --font:        'Inter', system-ui, -apple-system, sans-serif;
+  --mono:        'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
 
 body {
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.65;
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ── Header ──────────────────────────────────────────── */
-.site-header {
-  background: var(--header-bg);
-  padding: 0;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+/* ─── Page header ───────────────────────────────────────── */
+.page-header {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
 }
-.header-inner {
-  max-width: 1280px;
+.page-header-inner {
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 1.75rem 2rem;
+  padding: 1.6rem 2rem 1.4rem;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 2rem;
+  gap: 1.5rem;
   flex-wrap: wrap;
 }
-.header-brand { display: flex; flex-direction: column; gap: .25rem; }
-.header-tool {
+.header-left { display: flex; flex-direction: column; gap: .35rem; }
+.badge-sfmap {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
   font-size: .65rem;
   font-weight: 700;
-  letter-spacing: .15em;
+  letter-spacing: .13em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: .18em .65em;
+  border-radius: 99px;
+  width: fit-content;
 }
 .header-title {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: var(--header-text);
-  letter-spacing: -.01em;
+  color: var(--text);
+  letter-spacing: -.025em;
 }
-.header-meta {
+.header-right {
   display: flex;
-  gap: 2.5rem;
+  gap: 2rem;
   flex-wrap: wrap;
-  margin-top: .2rem;
+  padding-top: .15rem;
 }
-.meta-item { display: flex; flex-direction: column; gap: .1rem; }
-.meta-item span {
-  font-size: .65rem;
+.meta-block { display: flex; flex-direction: column; gap: .12rem; }
+.meta-label {
+  font-size: .6rem;
   font-weight: 600;
   letter-spacing: .1em;
   text-transform: uppercase;
-  color: #475569;
+  color: var(--text-3);
 }
-.meta-item strong, .meta-item code {
+.meta-value {
   font-size: .8rem;
-  color: #cbd5e1;
-  font-family: inherit;
-  background: none;
-  border: none;
-  padding: 0;
-}
-.meta-item code {
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: .75rem;
+  font-weight: 500;
+  color: var(--text-2);
+  font-family: var(--mono);
 }
 
-/* ── Layout ──────────────────────────────────────────── */
+/* ─── Layout ─────────────────────────────────────────────── */
 .layout {
-  max-width: 1280px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 1.75rem 2rem;
   display: grid;
-  grid-template-columns: 210px 1fr;
+  grid-template-columns: 200px 1fr;
   gap: 1.5rem;
   align-items: start;
 }
 
-/* ── TOC sidebar ─────────────────────────────────────── */
+/* ─── TOC ────────────────────────────────────────────────── */
 .toc {
   position: sticky;
   top: 1.5rem;
-  background: var(--surface);
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.1rem;
-  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: var(--shadow-sm);
 }
-.toc-label {
-  font-size: .65rem;
+.toc-heading {
+  font-size: .6rem;
   font-weight: 700;
-  letter-spacing: .12em;
+  letter-spacing: .13em;
   text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: .6rem;
+  color: var(--text-3);
   display: block;
+  margin-bottom: .65rem;
+  padding-bottom: .55rem;
+  border-bottom: 1px solid var(--border-soft);
 }
-.toc ol { list-style: none; counter-reset: toc-n; }
-.toc li { counter-increment: toc-n; }
+.toc ol { list-style: none; counter-reset: toc; }
+.toc li {
+  counter-increment: toc;
+  display: flex;
+  align-items: baseline;
+  gap: .4rem;
+}
+.toc li::before {
+  content: counter(toc);
+  font-size: .6rem;
+  font-weight: 600;
+  color: var(--text-3);
+  min-width: 14px;
+  text-align: right;
+  flex-shrink: 0;
+}
 .toc a {
   font-size: .775rem;
-  color: var(--text-secondary);
+  font-weight: 450;
+  color: var(--text-2);
   text-decoration: none;
   display: block;
-  padding: .22rem .4rem;
+  padding: .22rem .35rem;
   border-radius: var(--radius-sm);
-  line-height: 1.35;
+  line-height: 1.3;
   transition: background .12s, color .12s;
-}
-.toc a::before {
-  content: counter(toc-n) ". ";
-  color: var(--text-muted);
-  font-size: .7rem;
+  width: 100%;
 }
 .toc a:hover { background: var(--bg); color: var(--text); }
 
-/* ── Content ─────────────────────────────────────────── */
-.content { min-width: 0; }
-
-/* ── Card ────────────────────────────────────────────── */
+/* ─── Cards ──────────────────────────────────────────────── */
 .card {
-  background: var(--surface);
+  background: var(--white);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.5rem;
-  margin-bottom: 1.1rem;
-  box-shadow: var(--shadow);
+  padding: 1.5rem 1.6rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow-sm);
 }
-.card h2 {
-  font-size: .9rem;
-  font-weight: 700;
-  letter-spacing: -.005em;
+.card-title {
+  font-size: .875rem;
+  font-weight: 650;
   color: var(--text);
-  padding-bottom: .75rem;
-  margin-bottom: .9rem;
-  border-bottom: 1px solid var(--border);
+  letter-spacing: -.015em;
+  padding-bottom: .8rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+.card-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  background: var(--accent);
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 .card h3 {
-  font-size: .8125rem;
+  font-size: .775rem;
   font-weight: 600;
   color: var(--text);
-  margin: 1.1rem 0 .4rem;
+  margin: 1.1rem 0 .45rem;
+  letter-spacing: -.01em;
 }
 .card p {
-  font-size: .8125rem;
-  color: var(--text-secondary);
+  font-size: .8rem;
+  color: var(--text-2);
   margin: .3rem 0;
+  line-height: 1.55;
+}
+.card ul {
+  padding-left: 1.1rem;
+  margin: .4rem 0;
+}
+.card li {
+  font-size: .8rem;
+  color: var(--text-2);
+  margin: .22rem 0;
+  line-height: 1.5;
 }
 
-/* ── Tables ──────────────────────────────────────────── */
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: .7875rem;
-  margin: .6rem 0 .4rem;
-}
+/* ─── Tables ─────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; margin: .6rem 0; border-radius: var(--radius-sm); border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: .775rem; }
+thead tr { background: var(--bg); }
 thead th {
   text-align: left;
-  padding: .45rem .75rem;
-  font-size: .65rem;
+  padding: .5rem .85rem;
+  font-size: .62rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text-muted);
-  background: var(--bg);
-  border-bottom: 1px solid var(--border-strong);
+  letter-spacing: .09em;
+  color: var(--text-3);
+  border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 tbody td {
-  padding: .45rem .75rem;
-  border-bottom: 1px solid var(--border);
+  padding: .5rem .85rem;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-2);
   vertical-align: top;
-  color: var(--text-secondary);
 }
 tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: var(--row-hover); }
-.count { font-weight: 600; color: var(--text); }
-.none { color: var(--text-muted); font-style: italic; font-size: .775rem; }
+tbody tr:hover td { background: #fafbfd; }
+.num { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.muted { color: var(--text-3); font-style: italic; font-size: .75rem; }
 
-/* ── Code ────────────────────────────────────────────── */
+/* ─── Code ───────────────────────────────────────────────── */
 code {
-  font-family: 'SF Mono', ui-monospace, 'Cascadia Code', monospace;
+  font-family: var(--mono);
   font-size: .78em;
   background: var(--code-bg);
-  border: 1px solid var(--border);
-  color: #0f172a;
-  padding: .1em .35em;
-  border-radius: 4px;
+  color: var(--text);
+  padding: .12em .4em;
+  border-radius: 5px;
+  font-weight: 500;
   word-break: break-all;
 }
 pre {
-  font-family: 'SF Mono', ui-monospace, monospace;
-  font-size: .75rem;
+  font-family: var(--mono);
+  font-size: .74rem;
   background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -244,23 +280,36 @@ pre {
   overflow-x: auto;
   white-space: pre-wrap;
   word-break: break-all;
-  margin: .6rem 0;
+  margin: .65rem 0;
+  line-height: 1.6;
   color: var(--text);
 }
 
-/* ── Lists ───────────────────────────────────────────── */
-ul { padding-left: 1.25rem; margin: .4rem 0; }
-li { font-size: .8125rem; color: var(--text-secondary); margin: .2rem 0; }
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 820px) {
+  .layout { grid-template-columns: 1fr; }
+  .toc { position: static; }
+  .page-header-inner { flex-direction: column; gap: 1rem; }
+}
 """
 
 
 def _card(section_id: str, title: str, body: str) -> str:
     return (
         f'<div class="card" id="{_h(section_id)}">'
-        f'<h2>{_h(title)}</h2>'
+        f'<div class="card-title">{_h(title)}</div>'
         f'{body}'
         f'</div>'
     )
+
+
+def _table(headers: list[str], rows: list[list[str]]) -> str:
+    ths = "".join(f"<th>{_h(h)}</th>" for h in headers)
+    trs = "".join(
+        "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
+        for row in rows
+    )
+    return f'<div class="table-wrap"><table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table></div>'
 
 
 # ── Section builders ─────────────────────────────────────────────────────────
@@ -296,36 +345,28 @@ def _section_guest_vs_auth(output_dir: str) -> str:
 
     auth_set = set(auth_objects)
     auth_only = sorted(set(auth_objects) - set(guest_objects))
-
-    parts: list[str] = []
-    parts.append(
-        '<p>Root-level <code>graphql_dump_*</code> files are unauthenticated autodump artifacts. '
-        '<code>graphql/*.json</code> files are from the authenticated sweep.</p>'
-    )
+    parts: list[str] = [
+        '<p>Root-level <code>graphql_dump_*</code> artifacts are from the unauthenticated run. '
+        '<code>graphql/*.json</code> artifacts are from the authenticated sweep.</p>'
+    ]
 
     if guest_objects:
-        parts.append(f'<h3>Accessible Without Authentication &mdash; {len(guest_objects)} objects</h3>')
-        parts.append('<table><thead><tr><th>Object</th><th>Records Extracted</th><th>Also Authenticated</th></tr></thead><tbody>')
-        for obj in sorted(guest_objects, key=lambda x: -guest_objects[x]):
-            also = "yes" if obj in auth_set else "no"
-            parts.append(
-                f'<tr><td><code>{_h(obj)}</code></td>'
-                f'<td class="count">{guest_objects[obj]:,}</td>'
-                f'<td>{also}</td></tr>'
-            )
-        parts.append('</tbody></table>')
+        rows = [
+            [f"<code>{_h(obj)}</code>", f'<span class="num">{guest_objects[obj]:,}</span>', "yes" if obj in auth_set else "no"]
+            for obj in sorted(guest_objects, key=lambda x: -guest_objects[x])
+        ]
+        parts.append(f'<h3>Accessible Without Authentication &mdash; {len(guest_objects)} object(s)</h3>')
+        parts.append(_table(["Object", "Records Extracted", "Also Authenticated"], rows))
 
     if auth_only:
+        rows2 = [
+            [f"<code>{_h(obj)}</code>", f'<span class="num">{auth_objects[obj]:,}</span>']
+            for obj in sorted(auth_only, key=lambda x: -auth_objects[x])
+        ]
         parts.append(f'<h3>Authenticated-Only Objects &mdash; {len(auth_only)} additional</h3>')
-        parts.append('<table><thead><tr><th>Object</th><th>Total Records</th></tr></thead><tbody>')
-        for obj in sorted(auth_only, key=lambda x: -auth_objects[x]):
-            parts.append(
-                f'<tr><td><code>{_h(obj)}</code></td>'
-                f'<td class="count">{auth_objects[obj]:,}</td></tr>'
-            )
-        parts.append('</tbody></table>')
+        parts.append(_table(["Object", "Total Records"], rows2))
 
-    return _card("guest-auth-diff", "Access Comparison — Unauthenticated vs Authenticated", "\n".join(parts))
+    return _card("guest-auth-diff", "Access: Unauthenticated vs Authenticated", "\n".join(parts))
 
 
 def _section_listviews(output_dir: str) -> str:
@@ -339,18 +380,13 @@ def _section_listviews(output_dir: str) -> str:
     if not urls:
         return ""
 
-    rows = []
-    for url in urls:
-        obj = url.rstrip("/").rsplit("/", 2)[-2] if "/recordlist/" in url else ""
-        rows.append(f'<tr><td><code>{_h(url)}</code></td><td><code>{_h(obj)}</code></td></tr>')
-
-    body = (
-        f'<p>{len(urls)} list view(s) browsable directly in the community UI:</p>'
-        '<table><thead><tr><th>URL</th><th>Object</th></tr></thead><tbody>'
-        + "\n".join(rows)
-        + '</tbody></table>'
-    )
-    return _card("listviews", "UI List Views — Directly Browsable", body)
+    rows = [
+        [f"<code>{_h(url)}</code>",
+         f"<code>{_h(url.rstrip('/').rsplit('/', 2)[-2])}</code>" if "/recordlist/" in url else ""]
+        for url in urls
+    ]
+    body = f'<p>{len(urls)} list view(s) directly browsable in the community UI.</p>' + _table(["URL", "Object"], rows)
+    return _card("listviews", "UI List Views", body)
 
 
 def _section_graphql_query(output_dir: str) -> str:
@@ -378,22 +414,21 @@ def _section_graphql_query(output_dir: str) -> str:
             hits.append((obj_name, total))
 
     has_schema = os.path.isfile(os.path.join(graphql_dir, "graphql_schema.json"))
-
     if not hits and not has_schema:
         return ""
 
     parts: list[str] = []
     if has_schema:
-        parts.append('<p>Introspection schema saved (<code>graphql/graphql_schema.json</code>).</p>')
-
+        parts.append('<p>Introspection schema saved &mdash; <code>graphql/graphql_schema.json</code>.</p>')
     if hits:
+        rows = [
+            [f"<code>{_h(obj)}</code>", f'<span class="num">{count:,}</span>']
+            for obj, count in sorted(hits, key=lambda x: -x[1])
+        ]
         parts.append(f'<p>{len(hits)} object(s) returned records via GraphQL <code>uiapi</code>:</p>')
-        parts.append('<table><thead><tr><th>Object</th><th>Total Records</th></tr></thead><tbody>')
-        for obj, count in sorted(hits, key=lambda x: -x[1]):
-            parts.append(f'<tr><td><code>{_h(obj)}</code></td><td class="count">{count:,}</td></tr>')
-        parts.append('</tbody></table>')
+        parts.append(_table(["Object", "Total Records"], rows))
     else:
-        parts.append('<p class="none">No objects returned records in the query sweep.</p>')
+        parts.append('<p class="muted">No objects returned records in the query sweep.</p>')
 
     return _card("graphql-query", "GraphQL — Object Query Sweep", "\n".join(parts))
 
@@ -409,33 +444,31 @@ def _section_graphql_dumps(output_dir: str) -> str:
     if not dumps:
         return ""
 
-    parts: list[str] = [f'<p>{len(dumps)} object(s) with full field data extracted:</p>']
+    parts: list[str] = [f'<p>{len(dumps)} object(s) with full field data extracted.</p>']
 
     for obj_name, count, samples in dumps:
         parts.append(f'<h3><code>{_h(obj_name)}</code> &mdash; {count:,} record(s)</h3>')
         if not samples:
             continue
         all_keys = list(samples[0].keys())
-        max_cols = 12
-        parts.append('<table><thead><tr>')
-        for k in all_keys[:max_cols]:
-            parts.append(f'<th>{_h(k)}</th>')
+        max_cols = 10
+        headers = [k for k in all_keys[:max_cols]]
         if len(all_keys) > max_cols:
-            parts.append(f'<th>+{len(all_keys) - max_cols}</th>')
-        parts.append('</tr></thead><tbody>')
+            headers.append(f"+{len(all_keys) - max_cols}")
+        rows = []
         for rec in samples:
-            parts.append('<tr>')
+            row = []
             for k in all_keys[:max_cols]:
                 val = rec.get(k, "")
                 if isinstance(val, dict):
                     val = val.get("value", val)
-                parts.append(f'<td>{_h(str(val) if val is not None else "")}</td>')
+                row.append(_h(str(val) if val is not None else ""))
             if len(all_keys) > max_cols:
-                parts.append('<td class="none">&hellip;</td>')
-            parts.append('</tr>')
-        parts.append('</tbody></table>')
+                row.append('<span class="muted">&hellip;</span>')
+            rows.append(row)
+        parts.append(_table(headers, rows))
         if count > 3:
-            parts.append(f'<p class="none">{count - 3:,} additional record(s) in file.</p>')
+            parts.append(f'<p class="muted">{count - 3:,} additional record(s) in file.</p>')
 
     return _card("graphql-dumps", "GraphQL — Field-Level Dumps", "\n".join(parts))
 
@@ -443,24 +476,19 @@ def _section_graphql_dumps(output_dir: str) -> str:
 def _section_aura_dump(output_dir: str) -> str:
     pages: dict[str, int] = {}
     for path in sorted(glob.glob(os.path.join(output_dir, "*__page*.json"))):
-        match = re.match(r"^(.+)__page(\d+)\.json$", os.path.basename(path))
-        if match:
-            obj = match.group(1)
+        m = re.match(r"^(.+)__page(\d+)\.json$", os.path.basename(path))
+        if m:
+            obj = m.group(1)
             pages[obj] = pages.get(obj, 0) + 1
-
     if not pages:
         return ""
 
-    rows = "\n".join(
-        f'<tr><td><code>{_h(obj)}</code></td><td>{n}</td></tr>'
-        for obj, n in sorted(pages.items())
-    )
+    rows = [[f"<code>{_h(obj)}</code>", str(n)] for obj, n in sorted(pages.items())]
     body = (
-        f'<p>{len(pages)} object(s) with records accessible via Aura <code>getItems</code>:</p>'
-        '<table><thead><tr><th>Object</th><th>Pages</th></tr></thead><tbody>'
-        + rows + '</tbody></table>'
+        f'<p>{len(pages)} object(s) with records accessible via Aura <code>getItems</code>.</p>'
+        + _table(["Object", "Pages"], rows)
     )
-    return _card("aura-dump", "Aura — Object Dump (getItems)", body)
+    return _card("aura-dump", "Aura — getItems Dump", body)
 
 
 def _section_idor(output_dir: str) -> str:
@@ -480,14 +508,13 @@ def _section_idor(output_dir: str) -> str:
         obj = _h(f.get("object_type", f.get("object", f.get("apiName", ""))))
         fields = f.get("fields", {})
         field_count = len(fields) if isinstance(fields, dict) else 0
-        rows.append(f'<tr><td><code>{rec_id}</code></td><td><code>{obj}</code></td><td>{field_count}</td></tr>')
+        rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", str(field_count)])
 
     body = (
-        f'<p>{len(findings)} record(s) returned field data when queried without authentication:</p>'
-        '<table><thead><tr><th>Record ID</th><th>Object Type</th><th>Fields Returned</th></tr></thead><tbody>'
-        + "\n".join(rows) + '</tbody></table>'
+        f'<p>{len(findings)} record(s) returned field data when queried without authentication.</p>'
+        + _table(["Record ID", "Object", "Fields"], rows)
     )
-    return _card("idor", "IDOR — Unauthenticated getRecord Access", body)
+    return _card("idor", "IDOR — Unauthenticated getRecord", body)
 
 
 def _section_chatter(output_dir: str) -> str:
@@ -510,25 +537,16 @@ def _section_chatter(output_dir: str) -> str:
                 r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b', raw
             )
             if ip_match:
-                parts.append(f'<p>IP address in response: <code>{_h(ip_match.group(0))}</code></p>')
+                parts.append(f'<p>IP address disclosed in response: <code>{_h(ip_match.group(0))}</code></p>')
 
-    rest_endpoints = data.get("rest_endpoints", [])
-    if rest_endpoints:
-        parts.append('<h3>REST Endpoints Discovered</h3><ul>')
-        for ep in rest_endpoints:
-            parts.append(f'<li><code>{_h(str(ep))}</code></li>')
-        parts.append('</ul>')
-
-    aura_objects = data.get("aura_objects", [])
-    if aura_objects:
-        parts.append('<h3>Aura Objects via Chatter</h3><ul>')
-        for obj in aura_objects:
-            parts.append(f'<li><code>{_h(str(obj))}</code></li>')
-        parts.append('</ul>')
+    for key, heading in [("rest_endpoints", "REST Endpoints"), ("aura_objects", "Aura Objects via Chatter")]:
+        items = data.get(key, [])
+        if items:
+            lis = "".join(f"<li><code>{_h(str(i))}</code></li>" for i in items)
+            parts.append(f'<h3>{heading}</h3><ul>{lis}</ul>')
 
     if not parts:
         return ""
-
     return _card("chatter", "Chatter — REST Endpoint Probe", "\n".join(parts))
 
 
@@ -540,40 +558,31 @@ def _section_network(output_dir: str) -> str:
     if not data or not isinstance(data, dict):
         return ""
 
-    interesting = [
-        ("Id", "Network ID"),
-        ("Name", "Community Name"),
-        ("UrlPathPrefix", "URL Path"),
-        ("SelfRegistrationEnabled", "Self-Registration Enabled"),
-        ("PasswordlessLoginEnabled", "Passwordless Login"),
-        ("AllowMembersToFlag", "Allow Member Flagging"),
-        ("Status", "Status"),
-    ]
+    # data may be {Network: [records]} or a flat record
+    if "Network" in data:
+        records = data["Network"]
+        record = records[0] if records else {}
+        if isinstance(record, dict) and "fields" in record:
+            get = lambda k: (record["fields"].get(k) or {}).get("value")
+        else:
+            get = lambda k: record.get(k)
+    else:
+        get = lambda k: data.get(k)
 
+    interesting = [
+        ("Id", "Network ID"), ("Name", "Community Name"), ("UrlPathPrefix", "URL Path"),
+        ("SelfRegistrationEnabled", "Self-Registration"), ("PasswordlessLoginEnabled", "Passwordless Login"),
+        ("AllowMembersToFlag", "Allow Flagging"), ("Status", "Status"),
+    ]
     rows = []
     for key, label in interesting:
-        # data may be a nested dict from fetch() which stores {Network: [...]}
-        if isinstance(data, dict) and "Network" in data:
-            records = data["Network"]
-            record = records[0] if records else {}
-            if isinstance(record, dict) and "fields" in record:
-                field = record["fields"].get(key, {})
-                val = field.get("value") if isinstance(field, dict) else None
-            else:
-                val = record.get(key)
-        else:
-            val = data.get(key)
+        val = get(key)
         if val is not None:
-            rows.append(f'<tr><td>{_h(label)}</td><td><code>{_h(str(val))}</code></td></tr>')
+            rows.append([label, f"<code>{_h(str(val))}</code>"])
 
     if not rows:
         return ""
-
-    body = (
-        '<table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>'
-        + "\n".join(rows) + '</tbody></table>'
-    )
-    return _card("network", "Network — Community Configuration", body)
+    return _card("network", "Network — Community Configuration", _table(["Field", "Value"], rows))
 
 
 def _section_static(output_dir: str) -> str:
@@ -591,17 +600,13 @@ def _section_static(output_dir: str) -> str:
     for r in resources:
         if isinstance(r, dict):
             name = _h(r.get("name", r.get("Name", "")))
-            size = r.get("size", r.get("ContentSize", ""))
+            size = str(r.get("size", r.get("ContentSize", "")))
             ctype = _h(r.get("content_type", r.get("ContentType", r.get("type", ""))))
         else:
             name, size, ctype = _h(str(r)), "", ""
-        rows.append(f'<tr><td><code>{name}</code></td><td>{size}</td><td>{ctype}</td></tr>')
+        rows.append([f"<code>{name}</code>", size, ctype])
 
-    body = (
-        f'<p>{len(resources)} resource(s) downloaded:</p>'
-        '<table><thead><tr><th>Name</th><th>Size</th><th>Content Type</th></tr></thead><tbody>'
-        + "\n".join(rows) + '</tbody></table>'
-    )
+    body = f'<p>{len(resources)} resource(s) enumerated and downloaded.</p>' + _table(["Name", "Size", "Content Type"], rows)
     return _card("static", "Static Resources", body)
 
 
@@ -619,18 +624,12 @@ def _section_crud(output_dir: str) -> str:
     rows = []
     for f in findings:
         if isinstance(f, dict):
-            obj = _h(f.get("object", ""))
-            ops = ", ".join(f.get("operations", []))
+            rows.append([f"<code>{_h(f.get('object', ''))}</code>", _h(", ".join(f.get("operations", [])))])
         else:
-            obj, ops = _h(str(f)), ""
-        rows.append(f'<tr><td><code>{obj}</code></td><td>{_h(ops)}</td></tr>')
+            rows.append([f"<code>{_h(str(f))}</code>", ""])
 
-    body = (
-        f'<p>{len(findings)} object(s) with unexpected write access:</p>'
-        '<table><thead><tr><th>Object</th><th>Operations</th></tr></thead><tbody>'
-        + "\n".join(rows) + '</tbody></table>'
-    )
-    return _card("crud", "CRUD — Write Access Findings", body)
+    body = f'<p>{len(findings)} object(s) with unexpected write access.</p>' + _table(["Object", "Operations"], rows)
+    return _card("crud", "CRUD — Write Access", body)
 
 
 def _section_flow(output_dir: str) -> str:
@@ -643,13 +642,9 @@ def _section_flow(output_dir: str) -> str:
     hits = data if isinstance(data, list) else data.get("hits", [])
     if not hits:
         return ""
-
-    items = "\n".join(f'<li><code>{_h(str(h))}</code></li>' for h in hits)
-    body = (
-        f'<p>{len(hits)} flow(s) accessible via <code>InterviewController</code>:</p>'
-        f'<ul>{items}</ul>'
-    )
-    return _card("flow", "Flow — Accessible Flow API Names", body)
+    lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
+    body = f'<p>{len(hits)} flow(s) accessible via <code>InterviewController</code>.</p><ul>{lis}</ul>'
+    return _card("flow", "Flow API Names", body)
 
 
 def _section_apex(output_dir: str) -> str:
@@ -662,13 +657,9 @@ def _section_apex(output_dir: str) -> str:
     hits = data if isinstance(data, list) else data.get("hits", [])
     if not hits:
         return ""
-
-    items = "\n".join(f'<li><code>{_h(str(h))}</code></li>' for h in hits)
-    body = (
-        f'<p>{len(hits)} endpoint(s) found at <code>/services/apexrest/</code>:</p>'
-        f'<ul>{items}</ul>'
-    )
-    return _card("apexrest", "ApexREST — Accessible Endpoints", body)
+    lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
+    body = f'<p>{len(hits)} endpoint(s) at <code>/services/apexrest/</code>.</p><ul>{lis}</ul>'
+    return _card("apexrest", "ApexREST Endpoints", body)
 
 
 def _section_exposure(output_dir: str) -> str:
@@ -680,46 +671,35 @@ def _section_exposure(output_dir: str) -> str:
         return ""
 
     checks = [
-        ("self_registration", "Self-Registration"),
-        ("rest_api", "REST API"),
-        ("soap_api", "SOAP API"),
-        ("graphql", "GraphQL Endpoint"),
-        ("custom_controllers", "Custom Apex Controllers"),
-        ("security_headers", "Security Headers"),
-        ("visualforce", "Visualforce Pages"),
-        ("network_config", "Network Configuration"),
+        ("self_registration", "Self-Registration"), ("rest_api", "REST API"),
+        ("soap_api", "SOAP API"), ("graphql", "GraphQL Endpoint"),
+        ("custom_controllers", "Custom Apex Controllers"), ("security_headers", "Security Headers"),
+        ("visualforce", "Visualforce Pages"), ("network_config", "Network Configuration"),
     ]
-
     rows = []
     for key, label in checks:
         val = data.get(key)
         if val is None:
             continue
         if isinstance(val, dict):
-            parts = [f"{k}: {v}" for k, v in val.items() if v not in (None, "", [], {})]
-            summary = "; ".join(parts[:6])
+            summary = "; ".join(f"{k}: {v}" for k, v in val.items() if v not in (None, "", [], {}))[:400]
         elif isinstance(val, list):
             summary = f"{len(val)} item(s)" if val else "none found"
         else:
-            summary = str(val)
-        rows.append(f'<tr><td>{_h(label)}</td><td>{_h(summary[:400])}</td></tr>')
+            summary = str(val)[:400]
+        rows.append([label, _h(summary)])
 
     if not rows:
         return ""
-
-    body = (
-        '<table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>'
-        + "\n".join(rows) + '</tbody></table>'
-    )
-    return _card("exposure", "Surface — Exposure Checks", body)
+    return _card("exposure", "Surface Exposure Checks", _table(["Check", "Result"], rows))
 
 
 # ── Report generator ─────────────────────────────────────────────────────────
 
 def generate(output_dir: str, target: str | None = None) -> str:
     """
-    Scan output_dir for finding files and generate a self-contained HTML report.
-    Returns the path to the saved report file.
+    Scan output_dir for finding files and write a self-contained HTML report.
+    Returns the path to the saved file.
     """
     if target is None:
         target = os.path.basename(os.path.abspath(output_dir))
@@ -727,19 +707,19 @@ def generate(output_dir: str, target: str | None = None) -> str:
     date_str = datetime.now().strftime("%Y-%m-%d")
 
     sections: list[tuple[str, str, str]] = [
-        ("guest-auth-diff", "Access: Unauth vs Auth", _section_guest_vs_auth(output_dir)),
-        ("listviews",       "UI List Views",          _section_listviews(output_dir)),
-        ("graphql-query",   "GraphQL Query Sweep",    _section_graphql_query(output_dir)),
-        ("graphql-dumps",   "GraphQL Field Dumps",    _section_graphql_dumps(output_dir)),
-        ("aura-dump",       "Aura Object Dump",       _section_aura_dump(output_dir)),
-        ("idor",            "IDOR Findings",          _section_idor(output_dir)),
-        ("chatter",         "Chatter Probe",          _section_chatter(output_dir)),
-        ("network",         "Network Config",         _section_network(output_dir)),
-        ("static",          "Static Resources",       _section_static(output_dir)),
-        ("crud",            "CRUD Write Access",      _section_crud(output_dir)),
-        ("flow",            "Flow Hits",              _section_flow(output_dir)),
-        ("apexrest",        "ApexREST Endpoints",     _section_apex(output_dir)),
-        ("exposure",        "Exposure Checks",        _section_exposure(output_dir)),
+        ("guest-auth-diff", "Unauth vs Auth",         _section_guest_vs_auth(output_dir)),
+        ("listviews",       "UI List Views",           _section_listviews(output_dir)),
+        ("graphql-query",   "GraphQL Query Sweep",     _section_graphql_query(output_dir)),
+        ("graphql-dumps",   "GraphQL Field Dumps",     _section_graphql_dumps(output_dir)),
+        ("aura-dump",       "Aura getItems Dump",      _section_aura_dump(output_dir)),
+        ("idor",            "IDOR",                    _section_idor(output_dir)),
+        ("chatter",         "Chatter Probe",           _section_chatter(output_dir)),
+        ("network",         "Network Config",          _section_network(output_dir)),
+        ("static",          "Static Resources",        _section_static(output_dir)),
+        ("crud",            "CRUD Write Access",       _section_crud(output_dir)),
+        ("flow",            "Flow API Names",          _section_flow(output_dir)),
+        ("apexrest",        "ApexREST Endpoints",      _section_apex(output_dir)),
+        ("exposure",        "Exposure Checks",         _section_exposure(output_dir)),
     ]
     active = [(sid, label, body) for sid, label, body in sections if body]
 
@@ -752,7 +732,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
     )
     cards = "\n".join(body for _, _, body in active)
 
-    html_content = f"""<!DOCTYPE html>
+    page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -762,27 +742,36 @@ def generate(output_dir: str, target: str | None = None) -> str:
 </head>
 <body>
 
-<header class="site-header">
-  <div class="header-inner">
-    <div class="header-brand">
-      <span class="header-tool">sfmap</span>
-      <h1 class="header-title">Security Assessment</h1>
+<header class="page-header">
+  <div class="page-header-inner">
+    <div class="header-left">
+      <span class="badge-sfmap">sfmap</span>
+      <h1 class="header-title">Security Assessment Report</h1>
     </div>
-    <div class="header-meta">
-      <div class="meta-item"><span>Target</span><code>{_h(target)}</code></div>
-      <div class="meta-item"><span>Date</span><strong>{date_str}</strong></div>
-      <div class="meta-item"><span>Sections</span><strong>{len(active)}</strong></div>
+    <div class="header-right">
+      <div class="meta-block">
+        <span class="meta-label">Target</span>
+        <span class="meta-value">{_h(target)}</span>
+      </div>
+      <div class="meta-block">
+        <span class="meta-label">Date</span>
+        <span class="meta-value">{date_str}</span>
+      </div>
+      <div class="meta-block">
+        <span class="meta-label">Sections</span>
+        <span class="meta-value">{len(active)}</span>
+      </div>
     </div>
   </div>
 </header>
 
 <div class="layout">
   <nav class="toc">
-    <span class="toc-label">Contents</span>
+    <span class="toc-heading">Contents</span>
     <ol>{toc_items}</ol>
   </nav>
-  <main class="content">
-    {cards}
+  <main>
+{cards}
   </main>
 </div>
 
@@ -791,7 +780,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
 
     report_path = os.path.join(output_dir, "report.html")
     with open(report_path, "w", encoding="utf-8") as fh:
-        fh.write(html_content)
+        fh.write(page)
 
     logger.success(f"HTML report saved → {report_path}")
     return report_path
