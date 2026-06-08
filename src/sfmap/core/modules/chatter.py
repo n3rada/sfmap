@@ -65,7 +65,7 @@ def _check_file_upload(client: AuraClient, aura_url: str) -> dict | None:
             "response_snippet": snippet,
         }
         for ip in leaked:
-            logger.warning(f"IP leak — {ip} (endpoint: {endpoint}, HTTP {resp.status_code})")
+            logger.warning(f"IP leak: {ip} via {endpoint} (HTTP {resp.status_code})")
         return finding
 
     except Exception as exc:
@@ -107,7 +107,7 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> d
             data = resp.json()
             count = data.get("totalSize") or data.get("currentPageSize") or 0
             found[path] = count
-            logger.warning(f"Chatter REST accessible — {path} ({count} item(s))")
+            logger.warning(f"Chatter REST {path}: {count} item(s) accessible")
             safe_name = path.strip("/").replace("/", "_")
             out_path = os.path.join(output_dir, f"rest_{safe_name}.json")
             with open(out_path, "w", encoding="utf-8") as fh:
@@ -142,8 +142,8 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict:
         + len(rest_endpoints)
     )
     if findings_count:
-        logger.warning(f"Chatter: {findings_count} finding(s) — see {path}")
+        logger.warning(f"Chatter: {findings_count} finding(s) saved to {path}")
     else:
-        logger.success(f"Chatter: no findings — {path}")
+        logger.success(f"Chatter: no findings, saved to {path}")
 
     return summary

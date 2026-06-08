@@ -79,7 +79,7 @@ def get_items(
     response = client.aura_post(payload)
 
     if response.get("exceptionEvent"):
-        logger.warning(f"Aura exception for {object_name} ({mode} mode)")
+        logger.debug(f"Aura exception for {object_name} ({mode} mode)")
         return None
 
     actions = response.get("actions", [])
@@ -104,13 +104,13 @@ def get_items(
 
 def get_record(client: AuraClient, record_id: str) -> None:
     """Dumps a single record by ID and prints it."""
-    logger.info(f"Dumping record: {record_id}")
+    logger.debug(f"Dumping record: {record_id}")
     payload = _payload_get_record(record_id)
     response = client.aura_post(payload)
 
     actions = response.get("actions", [{}])
     if not actions or actions[0].get("state") != "SUCCESS":
-        logger.error("Record dump failed (state != SUCCESS)")
+        logger.warning("Record dump failed")
         return
 
     rv = actions[0].get("returnValue")
@@ -249,16 +249,16 @@ def download_file(
     elif sf_id.startswith("068"):
         url = f"{base}/sfc/servlet.shepherd/version/download/{sf_id}"
     else:
-        logger.error(
+        logger.warning(
             f"Unrecognised Salesforce ID prefix: {sf_id} (expected 069 or 068)"
         )
         return None
 
-    logger.info(f"GET {url}")
+    logger.debug(f"GET {url}")
     resp = client.get(url)
 
     if resp.status_code != 200:
-        logger.error(f"Download failed: HTTP {resp.status_code}")
+        logger.warning(f"Download failed: HTTP {resp.status_code}")
         return None
 
     # Try to extract filename from Content-Disposition

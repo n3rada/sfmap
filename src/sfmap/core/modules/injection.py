@@ -110,7 +110,7 @@ def probe_getitems(
                     "injected_count": injected_count,
                 }
                 logger.warning(
-                    f"SOQL INJECTION — {object_name} via where clause: "
+                    f"SOQL injection: {object_name} via where clause: "
                     f"baseline={baseline_count} → injected={injected_count} "
                     f"(payload: {payload!r})"
                 )
@@ -153,7 +153,7 @@ def probe_apex(
                             "payload": payload,
                         }
                         logger.warning(
-                            f"APEX SOQL candidate — {descriptor} "
+                            f"Apex SOQL candidate: {descriptor} "
                             f"param={param!r} payload={payload!r} → SUCCESS"
                         )
                         findings.append(finding)

@@ -61,7 +61,7 @@ def fuzz(client: AuraClient, wordlist_path: str | Path | None,
         try:
             response = client.aura_post(_payload(descriptor))
         except Exception as e:
-            logger.warning(f"HTTP error on {descriptor}: {e}")
+            logger.debug(f"HTTP error on {descriptor}: {e}")
             continue
 
         if response.get("exceptionEvent"):
@@ -78,10 +78,10 @@ def fuzz(client: AuraClient, wordlist_path: str | Path | None,
         error_msg = _first_error_message(errors)
 
         if state == "SUCCESS":
-            logger.success(f"HIT (SUCCESS): {descriptor}")
+            logger.warning(f"Callable descriptor: {descriptor}")
             hits.append(descriptor)
         elif "ACCESS_DENIED" in error_msg or "access" in error_msg.lower():
-            logger.warning(f"EXISTS — access denied (potential finding): {descriptor}")
+            logger.info(f"{descriptor}: exists, access denied")
             hits.append(descriptor)
         elif "No ACTION" in error_msg or "No such" in error_msg:
             logger.debug(f"Not found: {descriptor}")

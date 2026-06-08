@@ -300,7 +300,7 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
         acao = resp.headers.get("Access-Control-Allow-Origin", "")
 
         if not csp:
-            result["weaknesses"].append("No Content-Security-Policy — XSS risk unmitigated")
+            result["weaknesses"].append("No Content-Security-Policy, XSS risk unmitigated")
         else:
             if "unsafe-inline" in csp:
                 result["weaknesses"].append("CSP contains 'unsafe-inline'")
@@ -308,13 +308,13 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
                 result["weaknesses"].append("CSP contains 'unsafe-eval'")
 
         if not xfo and "frame-ancestors" not in csp:
-            result["weaknesses"].append("No X-Frame-Options or CSP frame-ancestors — clickjacking possible")
+            result["weaknesses"].append("No X-Frame-Options or CSP frame-ancestors, clickjacking possible")
 
         if not hsts:
-            result["weaknesses"].append("No HSTS — SSL stripping possible")
+            result["weaknesses"].append("No HSTS, SSL stripping possible")
 
         if acao == "*":
-            result["weaknesses"].append("CORS Access-Control-Allow-Origin: * — any origin can read responses")
+            result["weaknesses"].append("CORS Access-Control-Allow-Origin: * (any origin can read responses)")
             result["present"]["Access-Control-Allow-Origin"] = acao
         elif acao:
             result["present"]["Access-Control-Allow-Origin"] = acao

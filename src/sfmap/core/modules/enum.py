@@ -51,7 +51,7 @@ def print_objects(client: AuraClient) -> dict[str, str]:
     custom = {k: v for k, v in objects.items() if k.endswith("__c")}
 
     logger.success(
-        f"Found {len(objects)} objects — {len(standard)} standard | {len(custom)} custom"
+        f"Found {len(objects)} objects ({len(standard)} standard, {len(custom)} custom)"
     )
 
     logger.info("Standard objects:")
@@ -59,9 +59,9 @@ def print_objects(client: AuraClient) -> dict[str, str]:
         logger.info(f"  {name:<50} {prefix}")
 
     if custom:
-        logger.warning("Custom objects:")
+        logger.info("Custom objects:")
         for name, prefix in custom.items():
-            logger.warning(f"  {name:<50} {prefix}")
+            logger.info(f"  {name:<50} {prefix}")
     else:
         logger.info("Custom objects: none")
 

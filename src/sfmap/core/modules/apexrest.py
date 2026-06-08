@@ -75,11 +75,11 @@ def fuzz(
                 hits.append(hit)
 
                 if sc == 200:
-                    logger.warning(f"ApexREST {method} /{name}: HTTP {sc} — ACCESSIBLE")
+                    logger.warning(f"ApexREST {method} /{name}: HTTP {sc} (accessible)")
                 elif sc in (401, 403):
-                    logger.info(f"ApexREST {method} /{name}: HTTP {sc} — exists (auth required)")
+                    logger.info(f"ApexREST {method} /{name}: HTTP {sc} (auth required)")
                 elif sc == 400:
-                    logger.info(f"ApexREST {method} /{name}: HTTP {sc} — exists (bad request)")
+                    logger.info(f"ApexREST {method} /{name}: HTTP {sc} (bad request)")
                 else:
                     logger.info(f"ApexREST {method} /{name}: HTTP {sc}")
 
@@ -99,7 +99,7 @@ def fuzz(
             )
         else:
             logger.info(
-                f"ApexREST: {len(hits)} endpoint(s) discovered — all require authentication"
+                f"ApexREST: {len(hits)} endpoint(s) discovered, all require authentication"
             )
     else:
         logger.info("ApexREST: no custom endpoints found")

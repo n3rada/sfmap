@@ -135,7 +135,7 @@ def probe_guest(
                         logger.debug(f"Record {record_id}: exists but data blocked (guest denied)")
                         continue
                     logger.warning(
-                        f"IDOR — record {record_id} data accessible as guest "
+                        f"IDOR: record {record_id} data accessible as guest "
                         f"(prefix={record_id[:3]}, fields={rv_keys[:5]})"
                     )
                     findings.append({
@@ -153,7 +153,7 @@ def probe_guest(
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(findings, ensure_ascii=False, indent=2))
         logger.warning(
-            f"IDOR: {len(findings)} record(s) accessible as unauthenticated guest — "
+            f"IDOR: {len(findings)} record(s) accessible as unauthenticated guest, "
             f"see {path}"
         )
     else:

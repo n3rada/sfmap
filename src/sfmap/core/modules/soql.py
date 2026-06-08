@@ -53,7 +53,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
         logger.info(f"REST SOQL endpoint not accessible (HTTP {resp.status_code}){hint}")
         return {}
 
-    logger.warning(f"REST SOQL endpoint accessible — running probe queries")
+    logger.info("REST SOQL endpoint accessible, running probe queries")
     os.makedirs(output_dir, exist_ok=True)
 
     results: dict[str, int] = {}
@@ -87,7 +87,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     if results:
         total_records = sum(results.values())
         logger.warning(
-            f"REST SOQL: {total_records} record(s) across {len(results)} object(s) — "
+            f"REST SOQL: {total_records} record(s) across {len(results)} object(s), "
             f"see {output_dir}/soql_*.json"
         )
     else:

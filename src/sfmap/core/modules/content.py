@@ -92,8 +92,7 @@ def probe_rest(
 
             if resp.status_code == 200:
                 logger.warning(
-                    f"CRITICAL — ContentVersion/{vid} accessible via "
-                    f"unauthenticated REST: GET {url}"
+                    f"ContentVersion/{vid} accessible without authentication: GET {url}"
                 )
                 accessible.append(vid)
             else:
@@ -122,7 +121,7 @@ def download_all(
         all_ids.extend(ids)
 
     if not all_ids:
-        logger.info("No content records found — nothing to download.")
+        logger.info("No content records found, nothing to download.")
         return 0
 
     logger.info(f"Downloading {len(all_ids)} file(s) to {download_dir}")
@@ -222,7 +221,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
     version_ids = found.get("ContentVersion", [])
 
     if not version_ids:
-        logger.info("No ContentVersion records found — skipping REST probe.")
+        logger.info("No ContentVersion records found, skipping REST probe.")
         return 0
 
     logger.info(
@@ -232,8 +231,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
 
     if critical:
         logger.warning(
-            f"CRITICAL: {len(critical)} ContentVersion file(s) downloadable "
-            "without authentication:"
+            f"{len(critical)} ContentVersion file(s) downloadable without authentication:"
         )
         for vid in critical:
             parsed = urlparse(aura_url)

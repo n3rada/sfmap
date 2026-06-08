@@ -127,12 +127,12 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
     schema = _via_rest(client, aura_url)
 
     if schema is None:
-        logger.info("REST introspection failed — retrying via Aura executeGraphQL")
+        logger.info("REST introspection failed, retrying via Aura executeGraphQL")
         schema = _via_aura(client)
 
     if schema is None:
-        logger.warning(
-            "GraphQL introspection is blocked (endpoint may still be usable — "
+        logger.info(
+            "GraphQL introspection is blocked (endpoint may still be usable, "
             "use 'surface exposure' to confirm, then probe manually via Burp)"
         )
         return False
@@ -200,7 +200,7 @@ def query_objects(
             gql_errors = rv.get("errors") or []
             if gql_errors:
                 msg = gql_errors[0].get("message", "")
-                logger.debug(f"{obj_name}: GraphQL error — {msg}")
+                logger.debug(f"{obj_name}: GraphQL error: {msg}")
                 continue
 
             obj_data = (

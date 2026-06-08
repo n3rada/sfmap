@@ -78,7 +78,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
     output_dir = args.output or common.default_output_dir(args.url)
     with AuraClient(session) as client:
         for i, obj in enumerate(args.objects, 1):
-            logger.info(f"{i}/{len(args.objects)}) Dumping '{obj}'")
+            logger.debug(f"{i}/{len(args.objects)}) Dumping '{obj}'")
             ok = dump.dump_object(
                 client, obj, output_dir,
                 full=True,
@@ -86,7 +86,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
                 custom_fields=args.custom_fields,
             )
             if not ok:
-                logger.warning(f"No data returned for '{obj}'")
+                logger.debug(f"No data returned for '{obj}'")
     return 0
 
 
@@ -108,7 +108,7 @@ def cmd_dump_all(args: argparse.Namespace) -> int:
         failed = []
 
         for i, obj in enumerate(names, 1):
-            logger.info(f"{i}/{len(names)}) {obj}")
+            logger.debug(f"{i}/{len(names)}) {obj}")
             ok = dump.dump_object(client, obj, output_dir,
                                   full=True,
                                   custom_fields=args.custom_fields)
@@ -116,7 +116,7 @@ def cmd_dump_all(args: argparse.Namespace) -> int:
                 failed.append(obj)
 
         if failed:
-            logger.warning(f"Failed / empty: {', '.join(failed)}")
+            logger.info(f"Failed / empty: {', '.join(failed)}")
     return 0
 
 
@@ -134,7 +134,7 @@ def cmd_guest(args: argparse.Namespace) -> int:
 
     if session.token != "undefined" or session.cookie:
         logger.warning(
-            "guest runs unauthenticated — any -T / --cookie passed here are ignored"
+            "guest runs unauthenticated; any -T / --cookie flags passed here are ignored"
         )
     # Always strip credentials for the guest run
     session = Session(
@@ -149,12 +149,12 @@ def cmd_guest(args: argparse.Namespace) -> int:
     if cached:
         objects: dict[str, str] = cached
         logger.info(
-            f"Using cached object list ({len(objects)} objects — "
-            "run 'aura list-objects' first to refresh)"
+            f"Using cached object list ({len(objects)} objects, "
+            "run 'aura list-objects' to refresh)"
         )
     else:
         logger.info(
-            "No cache — enumerating objects as guest "
+            "No cache, enumerating objects as guest "
             "(run 'aura list-objects' with credentials for wider coverage)"
         )
         try:
@@ -177,7 +177,7 @@ def cmd_guest(args: argparse.Namespace) -> int:
             if results:
                 total = rv.get("totalCount", len(results))
                 logger.warning(
-                    f"GUEST HIT — {obj_name}: {len(results)} record(s) (total: {total})"
+                    f"GUEST: {obj_name}: {len(results)} record(s) (total: {total})"
                 )
                 aura_readable[obj_name] = total
                 dump.write_page(guest_dir, obj_name, 1, rv)
@@ -298,9 +298,9 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
     with AuraClient(session) as client:
         hits = apex.fuzz(client, args.wordlist, method=args.method)
     if hits:
-        logger.success(f"{len(hits)} callable descriptor(s) found:")
+        logger.warning(f"{len(hits)} callable descriptor(s) found:")
         for h in hits:
-            logger.success(f"  {h}")
+            logger.info(f"  {h}")
     else:
         logger.info("No callable Apex descriptors found.")
     return 0 if not hits else 1
@@ -319,7 +319,7 @@ def cmd_object_info(args: argparse.Namespace) -> int:
                 with open(path, "w", encoding="utf-8") as fh:
                     fh.write(json.dumps(info, ensure_ascii=False, indent=2))
                 fields = info.get("fields", {})
-                logger.info(f"{obj}: {len(fields)} field(s) — saved to {path}")
+                logger.info(f"{obj}: {len(fields)} field(s), saved to {path}")
             else:
                 logger.debug(f"{obj}: getObjectInfo returned nothing")
     return 0
@@ -331,7 +331,7 @@ def cmd_idor_probe(args: argparse.Namespace) -> int:
     record_ids = idor.collect_ids_from_directory(output_dir)
     if not record_ids:
         logger.warning(
-            "No record IDs found in output directory — run 'aura dump-all' first"
+            "No record IDs found in output directory, run 'aura dump-all' first"
         )
         return 1
     logger.info(f"Collected {len(record_ids)} unique record ID(s) from {output_dir}")

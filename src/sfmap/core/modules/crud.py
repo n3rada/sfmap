@@ -76,23 +76,23 @@ def probe_object(client: AuraClient, object_name: str) -> dict:
         record_id = (rv.get("record") or {}).get("id") or (rv.get("id"))
         result["create"] = True
         result["created_id"] = record_id
-        logger.warning(f"CREATE allowed — {object_name} (id={record_id})")
+        logger.warning(f"CREATE allowed on {object_name} (id={record_id})")
 
         if record_id:
             del_resp = client.aura_post(_delete_payload(record_id))
             del_actions = del_resp.get("actions", [])
             if del_actions and del_actions[0].get("state") == "SUCCESS":
                 result["delete"] = True
-                logger.warning(f"DELETE allowed — {object_name}/{record_id} (probe record cleaned up)")
+                logger.warning(f"DELETE allowed on {object_name}/{record_id}, probe record cleaned up")
             else:
                 logger.warning(
-                    f"DELETE failed for probe record {object_name}/{record_id} — "
+                    f"DELETE failed for probe record {object_name}/{record_id}, "
                     "manual cleanup may be required"
                 )
     else:
         err = _first_error(actions)
         result["error"] = err
-        logger.debug(f"{object_name}: create denied — {err[:120]}")
+        logger.debug(f"{object_name}: create denied: {err[:120]}")
 
     return result
 
