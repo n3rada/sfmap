@@ -76,47 +76,38 @@ def cmd_list_objects(args: argparse.Namespace) -> int:
 def cmd_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
+    obj_type = getattr(args, "type", "both")
+    display = getattr(args, "display", False)
+    custom_fields = getattr(args, "custom_fields", False)
+    explicit = getattr(args, "objects", None) or []
+
     with AuraClient(session) as client:
-        for i, obj in enumerate(args.objects, 1):
-            logger.debug(f"{i}/{len(args.objects)}) Dumping '{obj}'")
-            ok = dump.dump_object(
-                client, obj, output_dir,
-                full=True,
-                display=args.display,
-                custom_fields=args.custom_fields,
-            )
-            if not ok:
-                logger.debug(f"No data returned for '{obj}'")
-    return 0
-
-
-def cmd_dump_all(args: argparse.Namespace) -> int:
-    session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
-    with AuraClient(session) as client:
-        all_objects = enum.list_objects(client)
-
-        if args.type == "standard":
-            targets = {k: v for k, v in all_objects.items() if not k.endswith("__c")}
-        elif args.type == "custom":
-            targets = {k: v for k, v in all_objects.items() if k.endswith("__c")}
+        if explicit:
+            for i, obj in enumerate(explicit, 1):
+                logger.debug(f"{i}/{len(explicit)}) Dumping '{obj}'")
+                ok = dump.dump_object(client, obj, output_dir, full=True,
+                                      display=display, custom_fields=custom_fields)
+                if not ok:
+                    logger.debug(f"No data returned for '{obj}'")
         else:
-            targets = all_objects
-
-        names = list(targets.keys())
-        logger.info(f"{len(names)} objects to dump (type={args.type})")
-        failed = []
-
-        for i, obj in enumerate(names, 1):
-            logger.debug(f"{i}/{len(names)}) {obj}")
-            ok = dump.dump_object(client, obj, output_dir,
-                                  full=True,
-                                  custom_fields=args.custom_fields)
-            if not ok:
-                failed.append(obj)
-
-        if failed:
-            logger.info(f"Failed / empty: {', '.join(failed)}")
+            all_objects = enum.list_objects(client)
+            if obj_type == "standard":
+                targets = {k: v for k, v in all_objects.items() if not k.endswith("__c")}
+            elif obj_type == "custom":
+                targets = {k: v for k, v in all_objects.items() if k.endswith("__c")}
+            else:
+                targets = all_objects
+            names = list(targets.keys())
+            logger.info(f"{len(names)} objects to dump")
+            failed = []
+            for i, obj in enumerate(names, 1):
+                logger.debug(f"{i}/{len(names)}) {obj}")
+                ok = dump.dump_object(client, obj, output_dir, full=True,
+                                      custom_fields=custom_fields)
+                if not ok:
+                    failed.append(obj)
+            if failed:
+                logger.info(f"Failed / empty: {', '.join(failed)}")
     return 0
 
 
@@ -126,90 +117,6 @@ def cmd_record(args: argparse.Namespace) -> int:
         dump.get_record(client, args.record_id)
     return 0
 
-
-def _guest_session(session: Session) -> Session:
-    """Return a credential-stripped session for unauthenticated probing."""
-    if session.is_guest:
-        return session
-    if session.token != "undefined" or session.cookie:
-        logger.debug("Running in guest mode: credentials stripped")
-    return Session(
-        url=session.url,
-        context=session.context,
-        token="undefined",
-        cookie=None,
-        guest_mode=True,
-    )
-
-
-def cmd_guest(args: argparse.Namespace) -> int:
-    session = _guest_session(_build_session(args))
-    base_dir = args.output or common.default_output_dir(args.url)
-    guest_dir = os.path.join(base_dir, "guest")
-
-    cached = storage.load_config_data(session.url)
-    if cached:
-        objects: dict[str, str] = cached
-        logger.info(f"Using cached object list ({len(objects)} objects)")
-    else:
-        logger.info("No cache, enumerating objects as guest (run 'aura list-objects' with credentials for wider coverage)")
-        try:
-            with AuraClient(session) as c:
-                objects = enum.list_objects(c)
-        except RuntimeError as exc:
-            logger.error(f"Guest enumeration failed: {exc}")
-            return 1
-
-    logger.info(f"Probing {len(objects)} objects via Aura guest mode")
-    aura_readable: dict[str, int] = {}
-
-    with AuraClient(session) as client:
-        for i, obj_name in enumerate(objects, 1):
-            logger.debug(f"[{i}/{len(objects)}] {obj_name}")
-            rv = dump.get_items(client, obj_name, page_size=100, page=1)
-            if rv is None:
-                continue
-            results = rv.get("result", [])
-            if results:
-                total = rv.get("totalCount", len(results))
-                logger.warning(f"GUEST: {obj_name}: {len(results)} record(s) (total: {total})")
-                aura_readable[obj_name] = total
-                dump.write_page(guest_dir, obj_name, 1, rv)
-
-    if aura_readable:
-        logger.warning(f"{len(aura_readable)} Aura-readable object(s) found")
-        return 1
-    logger.success("No guest-accessible objects found.")
-    return 0
-
-
-def cmd_guest_graphql(args: argparse.Namespace) -> int:
-    session = _guest_session(_build_session(args))
-    base_dir = args.output or common.default_output_dir(args.url)
-    guest_dir = os.path.join(base_dir, "guest")
-
-    cached = storage.load_config_data(session.url)
-    if cached:
-        object_names = list(cached.keys())
-        logger.info(f"Guest GraphQL scan: {len(object_names)} objects from cache")
-    else:
-        logger.info("No cache — run 'aura list-objects' with credentials for wider coverage")
-        with AuraClient(session) as c:
-            object_names = list(enum.list_objects(c).keys())
-
-    if not object_names:
-        logger.info("Guest GraphQL scan: no objects to probe")
-        return 0
-
-    with AuraClient(session) as client:
-        results = graphql.query_objects(client, object_names, guest_dir)
-
-    hits = {k: v for k, v in results.items() if v > 0}
-    if hits:
-        logger.warning(f"Guest GraphQL: {len(hits)} object(s) accessible without authentication")
-        return 1
-    logger.success("Guest GraphQL: no objects accessible without authentication.")
-    return 0
 
 
 def cmd_content_enum(args: argparse.Namespace) -> int:
@@ -401,9 +308,7 @@ def cmd_idor_probe(args: argparse.Namespace) -> int:
     output_dir = args.output or common.default_output_dir(args.url)
     record_ids = idor.collect_ids_from_directory(output_dir)
     if not record_ids:
-        logger.warning(
-            "No record IDs found in output directory, run 'aura dump-all' first"
-        )
+        logger.warning("No record IDs found in output directory, run 'aura dump' first")
         return 1
     logger.info(f"Collected {len(record_ids)} unique record ID(s) from {output_dir}")
     findings = idor.probe_guest(session, record_ids, output_dir)
@@ -493,380 +398,225 @@ def build_parser() -> argparse.ArgumentParser:
         exit_on_error=True,
     )
 
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-        help="Show version and exit.",
-    )
-
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging.",
-    )
-
-    parser.add_argument(
-        "--trace",
-        action="store_true",
-        help="Enable trace logging (most verbose).",
-    )
-
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging.")
+    parser.add_argument("--trace", action="store_true", help="Enable trace logging (most verbose).")
     parser.add_argument(
         "--log-level",
-        type=str,
         choices=["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         default=None,
-        help="Set logging level explicitly (overrides --debug).",
     )
-
     parser.add_argument(
         "--proxy",
         nargs="?",
         const="http://127.0.0.1:8080",
         metavar="URL",
-        help="Proxy URL. Bare flag defaults to http://127.0.0.1:8080 (Burp).",
+        help="Proxy URL (bare flag defaults to Burp at 127.0.0.1:8080).",
     )
-
     parser.add_argument(
         "url",
         metavar="URL",
-        help="Target domain or base URL (e.g. site.my.site.com). /s/sfsites/aura is appended automatically.",
+        help="Target domain or base URL. /s/sfsites/aura is appended automatically.",
     )
-
     parser.add_argument(
-        "-C",
-        "--context",
+        "-C", "--context",
         default=None,
         metavar="VALUE|@FILE",
-        help="aura.context as a JSON string or @path/to/file.json. Defaults to @ctx.json in the current directory.",
+        help="aura.context JSON string or @file. Default: @ctx.json.",
     )
 
     surfaces = parser.add_subparsers(dest="surface", required=True)
 
-    # -- aura group ----------------------------------------------------------
+    # -- aura ----------------------------------------------------------------
     p_aura = surfaces.add_parser("aura", help="Aura surface operations")
     aura_sub = p_aura.add_subparsers(dest="aura_command", required=True)
 
-    p_list = aura_sub.add_parser("list-objects", help="Enumerate all visible objects")
-    _add_common_args(p_list)
-    p_list.set_defaults(func=cmd_list_objects)
+    p_objects = aura_sub.add_parser("objects", help="Enumerate all visible objects and cache the list")
+    _add_common_args(p_objects)
+    p_objects.set_defaults(func=cmd_list_objects)
 
-    p_dump = aura_sub.add_parser("dump", help="Dump records for specified object(s)")
+    p_dump = aura_sub.add_parser(
+        "dump",
+        help="Dump records. With OBJECT(s): dump those. Without: dump all visible objects.",
+    )
     _add_common_args(p_dump)
+    p_dump.add_argument("objects", nargs="*", metavar="OBJECT",
+                        help="Object(s) to dump (omit for all)")
+    p_dump.add_argument("--display", action="store_true",
+                        help="Print records to stdout in addition to saving")
+    p_dump.add_argument("--custom-fields", action="store_true",
+                        help="Extract __c field names into custom_fields_summary.txt")
     p_dump.add_argument(
-        "objects",
-        nargs="+",
-        metavar="OBJECT",
-        help="Object name(s) to dump  (e.g. User Account)",
-    )
-    p_dump.add_argument(
-        "--display",
-        action="store_true",
-        help="Print results to stdout as well as saving",
-    )
-    p_dump.add_argument(
-        "--custom-fields",
-        action="store_true",
-        help="Extract __c field names from each dumped record and write custom_fields_summary.txt",
+        "--type", choices=["standard", "custom", "both"], default="both",
+        help="Filter by object type when dumping all (default: both)",
     )
     p_dump.set_defaults(func=cmd_dump)
 
-    p_all = aura_sub.add_parser("dump-all", help="Dump all visible objects to files")
-    _add_common_args(p_all)
-    p_all.add_argument(
-        "--type",
-        choices=["standard", "custom", "both"],
-        default="both",
-        help="Which object types to dump (default: both)",
-    )
-    p_all.add_argument(
-        "--custom-fields",
-        action="store_true",
-        help="Extract __c field names from each dumped record and write custom_fields_summary.txt",
-    )
-    p_all.set_defaults(func=cmd_dump_all)
-
-    p_rec = aura_sub.add_parser("record", help="Dump a single record by Salesforce ID")
+    p_rec = aura_sub.add_parser("record", help="Fetch and print a single record by ID")
     _add_common_args(p_rec)
     p_rec.add_argument("record_id", metavar="RECORD_ID")
     p_rec.set_defaults(func=cmd_record)
 
-    p_apex = aura_sub.add_parser(
-        "apex-fuzz", help="Wordlist-fuzz ApexController ACTION methods"
-    )
-    _add_common_args(p_apex)
-    p_apex.add_argument(
-        "-w",
-        "--wordlist",
-        required=False,
-        default=None,
-        metavar="FILE",
-        help="Optional custom controller wordlist path (default: bundled sfmap list)",
-    )
-    p_apex.add_argument(
-        "--method",
-        default="invoke",
-        metavar="METHOD",
-        help="Apex method name to fuzz (default: invoke)",
-    )
-    p_apex.set_defaults(func=cmd_apex_fuzz)
-
-    p_oi = aura_sub.add_parser(
-        "object-info",
+    p_info = aura_sub.add_parser(
+        "info",
         help="Fetch field-level metadata (getObjectInfo) for one or more objects",
     )
-    _add_common_args(p_oi)
-    p_oi.add_argument(
-        "objects",
-        nargs="*",
-        metavar="OBJECT",
-        help="Object name(s) to inspect (default: all visible objects)",
+    _add_common_args(p_info)
+    p_info.add_argument("objects", nargs="*", metavar="OBJECT",
+                        help="Object(s) to inspect (omit for all visible)")
+    p_info.set_defaults(func=cmd_object_info)
+
+    p_related = aura_sub.add_parser(
+        "related",
+        help="Enumerate child relationships on a record via getRecords",
     )
-    p_oi.set_defaults(func=cmd_object_info)
+    _add_common_args(p_related)
+    p_related.add_argument("record_id", metavar="RECORD_ID")
+    p_related.add_argument("--object", default=None, metavar="OBJECT_API_NAME",
+                           help="Object API name (resolved automatically if omitted)")
+    p_related.set_defaults(func=cmd_related_lists)
 
     p_idor = aura_sub.add_parser(
-        "idor-probe",
-        help="Test getRecord access as unauthenticated guest for all IDs in the output directory",
+        "idor",
+        help="Test unauthenticated getRecord access for all IDs in the output directory",
     )
     _add_common_args(p_idor)
     p_idor.set_defaults(func=cmd_idor_probe)
 
-    p_rl = aura_sub.add_parser(
-        "related-lists",
-        help="Enumerate and probe all child relationships on a record via getRecords",
-    )
-    _add_common_args(p_rl)
-    p_rl.add_argument("record_id", metavar="RECORD_ID", help="Salesforce record ID to probe")
-    p_rl.add_argument(
-        "--object",
-        default=None,
-        metavar="OBJECT_API_NAME",
-        help="Object API name (optional — resolved automatically via getRecord if omitted)",
-    )
-    p_rl.set_defaults(func=cmd_related_lists)
-
-    p_flow = aura_sub.add_parser(
-        "flow-fuzz",
-        help="Wordlist-fuzz Flow API names via InterviewController/ACTION$getFlowUIMetadata",
-    )
-    _add_common_args(p_flow)
-    p_flow.add_argument(
-        "-w",
-        "--wordlist",
-        default=None,
-        metavar="FILE",
-        help="Custom wordlist of flow API names (default: built-in)",
-    )
-    p_flow.set_defaults(func=cmd_flow_fuzz)
-
-    p_net = aura_sub.add_parser(
-        "network-access",
-        help="Enumerate Experience Cloud network config (Network, NetworkMemberGroup, self-registration)",
-    )
-    _add_common_args(p_net)
-    p_net.set_defaults(func=cmd_network_access)
-
     p_crud = aura_sub.add_parser(
-        "crud-probe",
-        help="Probe create/delete access on visible objects (auto-cleans created records)",
+        "crud",
+        help="Probe CREATE/DELETE access on visible objects",
     )
     _add_common_args(p_crud)
-    p_crud.add_argument(
-        "--type",
-        choices=["standard", "custom", "both"],
-        default="custom",
-        help="Which object types to probe (default: custom)",
-    )
+    p_crud.add_argument("--type", choices=["standard", "custom", "both"], default="custom",
+                        help="Object type filter (default: custom)")
     p_crud.set_defaults(func=cmd_crud_probe)
 
-    p_inj = aura_sub.add_parser(
-        "soql-inject",
-        help="Test SOQL injection via getItems where clause and Apex method parameters",
+    p_inject = aura_sub.add_parser(
+        "inject",
+        help="Test SOQL injection via getItems where-clause and Apex method parameters",
     )
-    _add_common_args(p_inj)
-    p_inj.add_argument(
-        "--apex-hits",
-        nargs="*",
-        metavar="DESCRIPTOR",
-        default=[],
-        help="Apex descriptors to test (from apex-fuzz output)",
-    )
-    p_inj.set_defaults(func=cmd_soql_inject)
+    _add_common_args(p_inject)
+    p_inject.add_argument("--apex-hits", nargs="*", metavar="DESCRIPTOR", default=[],
+                          help="Apex descriptors to test (from aura apex output)")
+    p_inject.set_defaults(func=cmd_soql_inject)
 
-    # -- guest group ---------------------------------------------------------
-    p_guest = surfaces.add_parser("guest", help="Guest/unauthenticated operations")
-    guest_sub = p_guest.add_subparsers(dest="guest_command", required=True)
+    p_apex = aura_sub.add_parser("apex", help="Wordlist-fuzz Apex controller ACTION descriptors")
+    _add_common_args(p_apex)
+    p_apex.add_argument("-w", "--wordlist", default=None, metavar="FILE",
+                        help="Custom controller wordlist (default: built-in)")
+    p_apex.add_argument("--method", default="invoke", metavar="METHOD",
+                        help="Apex method name to fuzz (default: invoke)")
+    p_apex.set_defaults(func=cmd_apex_fuzz)
 
-    p_guest_aura = guest_sub.add_parser(
-        "aura", help="Unauthenticated Aura object visibility scan"
-    )
-    p_guest_aura.add_argument(
-        "--output",
-        "-o",
-        metavar="DIR",
-        help="Output directory (default: derived from URL)",
-    )
-    p_guest_aura.set_defaults(func=cmd_guest)
+    p_flow = aura_sub.add_parser("flow", help="Wordlist-fuzz Flow API names via InterviewController")
+    _add_common_args(p_flow)
+    p_flow.add_argument("-w", "--wordlist", default=None, metavar="FILE",
+                        help="Custom flow name wordlist (default: built-in)")
+    p_flow.set_defaults(func=cmd_flow_fuzz)
 
-    p_guest_gql = guest_sub.add_parser(
-        "graphql",
-        help="Unauthenticated GraphQL uiapi object scan — complements 'guest aura'",
+    p_network = aura_sub.add_parser(
+        "network",
+        help="Enumerate Experience Cloud network config (Network, NetworkMemberGroup, self-registration)",
     )
-    p_guest_gql.add_argument(
-        "--output",
-        "-o",
-        metavar="DIR",
-        help="Output directory (default: derived from URL)",
-    )
-    p_guest_gql.set_defaults(func=cmd_guest_graphql)
+    _add_common_args(p_network)
+    p_network.set_defaults(func=cmd_network_access)
 
-    # -- rest group ----------------------------------------------------------
+    # -- rest ----------------------------------------------------------------
     p_rest = surfaces.add_parser("rest", help="REST surface operations")
     rest_sub = p_rest.add_subparsers(dest="rest_command", required=True)
 
-    p_ce = rest_sub.add_parser(
-        "content-enum",
-        help="Enumerate Content* and probe unauthenticated VersionData access",
-        description=(
-            "Dumps ContentDocument (069) and ContentVersion (068) records via Aura, "
-            "then probes each ContentVersion ID against "
-            "/services/data/v59.0/sobjects/ContentVersion/{Id}/VersionData "
-            "without any credentials. A 200 response means the Guest profile has "
-            '"API Enabled" and files are downloadable without authentication '
-            "(critical finding)."
-        ),
-    )
-    _add_common_args(p_ce)
-    p_ce.set_defaults(func=cmd_content_enum)
+    # rest graphql (subgroup)
+    p_gql_grp = rest_sub.add_parser("graphql", help="GraphQL uiapi operations")
+    gql_sub = p_gql_grp.add_subparsers(dest="graphql_command", required=True)
 
-    p_cd = rest_sub.add_parser(
-        "content-download",
-        help="Enumerate and download all ContentDocument/ContentVersion files",
+    p_gql_dump = gql_sub.add_parser(
+        "dump",
+        help="Dump records. No args: full sweep. OBJECT: auto-discover fields. OBJECT --fields: explicit.",
     )
-    _add_common_args(p_cd)
-    p_cd.set_defaults(func=cmd_content_download)
+    _add_common_args(p_gql_dump)
+    p_gql_dump.add_argument("object", nargs="?", default=None, metavar="OBJECT",
+                            help="Object API name (omit for full sweep)")
+    p_gql_dump.add_argument("--fields", nargs="+", default=None, metavar="FIELD",
+                            help="Fields in dot notation (auto-discovered if omitted)")
+    p_gql_dump.set_defaults(func=cmd_graphql_dump)
 
-    p_gql_d = rest_sub.add_parser(
-        "graphql-dump",
-        help=(
-            "Dump records via GraphQL uiapi. No args: full sweep of all visible objects "
-            "with auto-discovered fields. With OBJECT: auto-discover fields for that object. "
-            "With OBJECT --fields: use explicit field list."
-        ),
+    p_gql_query = gql_sub.add_parser(
+        "query",
+        help="Sweep all visible objects via GraphQL and record accessible record counts",
     )
-    _add_common_args(p_gql_d)
-    p_gql_d.add_argument(
-        "object",
-        nargs="?",
-        default=None,
-        metavar="OBJECT",
-        help="Salesforce object API name (optional — omit for full sweep)",
-    )
-    p_gql_d.add_argument(
-        "--fields",
-        nargs="+",
-        default=None,
-        metavar="FIELD",
-        help="Fields in dot notation (e.g. Name Email Profile.Name). Auto-discovered if omitted.",
-    )
-    p_gql_d.set_defaults(func=cmd_graphql_dump)
+    _add_common_args(p_gql_query)
+    p_gql_query.set_defaults(func=cmd_graphql_query)
 
-    p_gql = rest_sub.add_parser(
-        "graphql-introspect",
-        help="Run GraphQL introspection and save schema to output directory",
-    )
-    _add_common_args(p_gql)
-    p_gql.set_defaults(func=cmd_graphql_introspect)
+    p_gql_intro = gql_sub.add_parser("introspect", help="Run GraphQL introspection and save schema")
+    _add_common_args(p_gql_intro)
+    p_gql_intro.set_defaults(func=cmd_graphql_introspect)
 
-    p_gql_q = rest_sub.add_parser(
-        "graphql-query",
-        help="Query all known objects via GraphQL uiapi and record accessible record counts",
-    )
-    _add_common_args(p_gql_q)
-    p_gql_q.set_defaults(func=cmd_graphql_query)
+    # rest content (subgroup)
+    p_content_grp = rest_sub.add_parser("content", help="ContentDocument/ContentVersion operations")
+    content_sub = p_content_grp.add_subparsers(dest="content_command", required=True)
 
-    p_chat = rest_sub.add_parser(
-        "chatter",
-        help="Enumerate Chatter feeds and probe IP leak via /chatter/handlers/file/body",
+    p_cenum = content_sub.add_parser(
+        "enum",
+        help="Enumerate Content* records and probe unauthenticated VersionData access",
     )
-    _add_common_args(p_chat)
-    p_chat.set_defaults(func=cmd_chatter)
+    _add_common_args(p_cenum)
+    p_cenum.set_defaults(func=cmd_content_enum)
 
-    p_cdist = rest_sub.add_parser(
-        "content-distribution",
+    p_cdl = content_sub.add_parser("download", help="Download all ContentDocument/ContentVersion files")
+    _add_common_args(p_cdl)
+    p_cdl.set_defaults(func=cmd_content_download)
+
+    p_cdist = content_sub.add_parser(
+        "distribution",
         help="Enumerate ContentDistribution records and probe public file URLs without authentication",
     )
     _add_common_args(p_cdist)
     p_cdist.set_defaults(func=cmd_content_distribution)
 
-    p_ar = rest_sub.add_parser(
-        "apexrest-fuzz",
-        help="Wordlist-fuzz /services/apexrest/ custom REST endpoints",
-    )
-    _add_common_args(p_ar)
-    p_ar.add_argument(
-        "-w",
-        "--wordlist",
-        default=None,
-        metavar="FILE",
-        help="Custom endpoint wordlist (default: bundled sfmap list)",
-    )
-    p_ar.set_defaults(func=cmd_apexrest_fuzz)
+    # rest flat commands
+    p_static = rest_sub.add_parser("static", help="Enumerate and download static resources")
+    _add_common_args(p_static)
+    p_static.add_argument("-w", "--wordlist", default=None, metavar="FILE",
+                          help="Custom resource name wordlist (default: built-in)")
+    p_static.set_defaults(func=cmd_static_resources)
 
-    p_sr = rest_sub.add_parser(
-        "static-resources",
-        help="Enumerate and inspect Salesforce static resources for hardcoded secrets",
-    )
-    _add_common_args(p_sr)
-    p_sr.add_argument(
-        "-w",
-        "--wordlist",
-        default=None,
-        metavar="FILE",
-        help="Custom resource name wordlist (default: bundled sfmap list)",
-    )
-    p_sr.set_defaults(func=cmd_static_resources)
+    p_apexrest = rest_sub.add_parser("apexrest", help="Wordlist-fuzz /services/apexrest/ endpoints")
+    _add_common_args(p_apexrest)
+    p_apexrest.add_argument("-w", "--wordlist", default=None, metavar="FILE",
+                            help="Custom endpoint wordlist (default: built-in)")
+    p_apexrest.set_defaults(func=cmd_apexrest_fuzz)
 
-    p_soql = rest_sub.add_parser(
-        "soql-query",
-        help="Run probe SOQL queries via /services/data/{v}/query (requires REST API access)",
-    )
+    p_soql = rest_sub.add_parser("soql", help="Run probe SOQL queries (requires Bearer token)")
     _add_common_args(p_soql)
     p_soql.set_defaults(func=cmd_soql_query)
 
     p_tooling = rest_sub.add_parser(
-        "tooling-query",
-        help="Dump Apex class/trigger/page source via Tooling API (requires Bearer token)",
+        "tooling", help="Dump Apex source via Tooling API (requires Bearer token)"
     )
     _add_common_args(p_tooling)
     p_tooling.set_defaults(func=cmd_tooling_query)
 
-    # -- surface group -------------------------------------------------------
-    p_surface = surfaces.add_parser("surface", help="Cross-surface mapping")
-    surface_sub = p_surface.add_subparsers(dest="surface_command", required=True)
-
-    p_exp = surface_sub.add_parser(
-        "exposure",
-        help="Run REST/SOAP/GraphQL/self-reg/controller checks",
+    p_chatter = rest_sub.add_parser(
+        "chatter", help="Enumerate Chatter feeds and probe IP leak endpoint"
     )
+    _add_common_args(p_chatter)
+    p_chatter.set_defaults(func=cmd_chatter)
+
+    # -- surface -------------------------------------------------------------
+    p_surface = surfaces.add_parser("surface", help="Cross-surface exposure mapping")
+    surface_sub = p_surface.add_subparsers(dest="surface_command", required=True)
+    p_exp = surface_sub.add_parser("exposure", help="Full exposure check across all surfaces")
     _add_common_args(p_exp)
     p_exp.set_defaults(func=cmd_exposure)
 
-    # -- files group ---------------------------------------------------------
-    p_files = surfaces.add_parser("files", help="File/object download operations")
+    # -- files ---------------------------------------------------------------
+    p_files = surfaces.add_parser("files", help="File download by ID")
     files_sub = p_files.add_subparsers(dest="files_command", required=True)
-
-    p_dl = files_sub.add_parser(
-        "download",
-        help="Download by ContentDocument/ContentVersion ID",
-    )
+    p_dl = files_sub.add_parser("download", help="Download by ContentDocument/ContentVersion ID")
     _add_common_args(p_dl)
-    p_dl.add_argument(
-        "sf_id",
-        metavar="ID",
-        help="Salesforce record ID (069 ContentDocument or 068 ContentVersion)",
-    )
+    p_dl.add_argument("sf_id", metavar="ID",
+                      help="Salesforce record ID (069 ContentDocument or 068 ContentVersion)")
     p_dl.set_defaults(func=cmd_download)
 
     return parser

@@ -49,8 +49,8 @@ Request header:
 Save those three values:
 
 ```bash
-# save context to ctx.json  (default)
-# save token to token.txt   (default)
+# save context to ctx.json   (default)
+# save token to token.txt    (default)
 # save cookie to cookies.txt (default)
 ```
 
@@ -66,6 +66,8 @@ Pass them explicitly if needed:
 sfmap target.my.site.com -C @/path/ctx.json <surface> <action> \
   -T @/path/token.txt --cookie @/path/cookies.txt
 ```
+
+**Unauthenticated mode:** if no credentials are found (token file absent or contains `undefined`, no cookie), every command runs as a guest automatically. Output is identical — no separate guest surface is needed.
 
 **Token lifetime:** `aura.token` uses session-based expiry (not a hard timestamp). A token from an active browser session covers a full assessment. If requests return `Invalid token`, capture a fresh one.
 
@@ -93,7 +95,7 @@ document.cookie.match(/sid=([^;]+)/)[1]
 Save to `bearer.txt` (default) or pass via `--bearer`:
 
 ```bash
-sfmap target.my.site.com --bearer @bearer.txt rest soql-query
+sfmap target.my.site.com --bearer @bearer.txt rest soql
 ```
 
 If `bearer.txt` is present in the working directory, it is picked up automatically. If absent, REST API commands still run but will receive 401 and report access as blocked.
@@ -121,46 +123,39 @@ sfmap [--debug | --trace | --log-level LEVEL] [--proxy [URL]] [-C ctx] URL SURFA
 Route through Burp:
 
 ```bash
-sfmap --proxy target.my.site.com aura dump-all
+sfmap --proxy target.my.site.com aura dump
 ```
 
 ---
 
 ## Commands
 
-### `aura list-objects`
+### `aura objects`
 
 Enumerate all Salesforce objects visible to the current session via `getConfigData`. Caches the result for use by other commands.
 
 ```bash
-sfmap target.my.site.com aura list-objects
+sfmap target.my.site.com aura objects
 ```
 
 ---
 
-### `aura dump OBJECT [OBJECT ...]`
+### `aura dump [OBJECT ...] [--type standard|custom|both]`
 
-Dump all records for one or more objects. Always performs a full multi-page dump.
+Dump records. With object names: dump those specific objects. Without: enumerate all visible objects and dump everything.
 
 ```bash
+# Dump specific objects
 sfmap target.my.site.com aura dump User
 sfmap target.my.site.com aura dump User Account Contact --display
-sfmap target.my.site.com aura dump Invoice__c --custom-fields
+
+# Dump all objects (default type: both)
+sfmap target.my.site.com aura dump
+sfmap target.my.site.com aura dump --type custom --custom-fields
 ```
 
-`--display` prints records to stdout in addition to writing files.  
+`--display` prints records to stdout in addition to writing files.
 `--custom-fields` extracts `__c` field names and appends them to `custom_fields_summary.txt`.
-
----
-
-### `aura dump-all [--type standard|custom|both]`
-
-Dump every visible object. Default type is `both`.
-
-```bash
-sfmap target.my.site.com aura dump-all
-sfmap target.my.site.com aura dump-all --type custom --custom-fields
-```
 
 ---
 
@@ -174,212 +169,188 @@ sfmap target.my.site.com aura record 0015g00000XyZaAAA
 
 ---
 
-### `aura object-info [OBJECT ...]`
+### `aura info [OBJECT ...]`
 
 Fetch full field-level metadata for objects via `RecordUiController/ACTION$getObjectInfo`. Returns field names, types, access levels, and labels — including fields not visible in `getItems` dumps.
 
 ```bash
 # Specific objects
-sfmap target.my.site.com aura object-info User Invoice__c
+sfmap target.my.site.com aura info User Invoice__c
 
 # All visible objects (slow on large orgs)
-sfmap target.my.site.com aura object-info
+sfmap target.my.site.com aura info
 ```
 
 Output: `objectinfo_{ObjectName}.json` per object in the output directory.
 
 ---
 
-### `aura apex-fuzz [-w wordlist] [--method METHOD]`
+### `aura apex [-w wordlist] [--method METHOD]`
 
 Wordlist-fuzz `apex://ControllerName/ACTION$method` descriptors. Reports which Apex controllers respond without an Aura exception.
 
 ```bash
-sfmap target.my.site.com aura apex-fuzz
-sfmap target.my.site.com aura apex-fuzz -w ./custom_controllers.txt --method getData
+sfmap target.my.site.com aura apex
+sfmap target.my.site.com aura apex -w ./custom_controllers.txt --method getData
 ```
 
 Uses a bundled wordlist of common Salesforce community controllers by default.
 
 ---
 
-### `aura crud-probe [--type standard|custom|both]`
+### `aura crud [--type standard|custom|both]`
 
 Probe CREATE and DELETE access on visible objects. Creates a sentinel record, then immediately attempts to delete it. Reports which objects allow write access. Default type is `custom`.
 
 ```bash
-sfmap target.my.site.com aura crud-probe
-sfmap target.my.site.com aura crud-probe --type both
+sfmap target.my.site.com aura crud
+sfmap target.my.site.com aura crud --type both
 ```
 
 Output: `crud_probe.json`.
 
 ---
 
-### `aura soql-inject [--apex-hits DESCRIPTOR ...]`
+### `aura inject [--apex-hits DESCRIPTOR ...]`
 
 Test SOQL injection via the `getItems` where-clause parameter and optional Apex method parameters. Compares baseline record counts with injected payloads.
 
 ```bash
-sfmap target.my.site.com aura soql-inject
-sfmap target.my.site.com aura soql-inject --apex-hits "apex://MyCtrl/ACTION$query"
+sfmap target.my.site.com aura inject
+sfmap target.my.site.com aura inject --apex-hits "apex://MyCtrl/ACTION$query"
 ```
 
 Output: `injection_findings.json`.
 
 ---
 
-### `aura related-lists RECORD_ID [--object OBJECT_API_NAME]`
+### `aura related RECORD_ID [--object OBJECT_API_NAME]`
 
 Enumerate every child relationship on a record and probe each via `RelatedListContainerDataProviderController/ACTION$getRecords`. This is a distinct data access vector from `getItems` — child records reachable through a relationship may be accessible even when direct enumeration of the child object is denied.
 
 The object API name is resolved automatically from the record via `getRecord`. Pass `--object` to skip that round-trip if the type is already known.
 
 ```bash
-sfmap target.my.site.com aura related-lists a0cAP000004q1k5YAA
-sfmap target.my.site.com aura related-lists a0cAP000004q1k5YAA --object DownloadRequest__c
+sfmap target.my.site.com aura related a0cAP000004q1k5YAA
+sfmap target.my.site.com aura related a0cAP000004q1k5YAA --object DownloadRequest__c
 ```
 
 Output: `relatedlists_{RECORD_ID}.json` in the output directory.
 
 ---
 
-### `aura flow-fuzz [-w wordlist]`
+### `aura flow [-w wordlist]`
 
 Wordlist-fuzz Salesforce Flow API names via `InterviewController/ACTION$getFlowUIMetadata`. A successful response reveals the flow's screen and variable definitions — registration flows, password-reset flows, and case-creation flows are high-value targets. Flows that exist but restrict access return a distinct error and are still reported.
 
 ```bash
-sfmap target.my.site.com aura flow-fuzz
-sfmap target.my.site.com aura flow-fuzz -w ./custom_flows.txt
+sfmap target.my.site.com aura flow
+sfmap target.my.site.com aura flow -w ./custom_flows.txt
 ```
 
 Output: `flow_hits.json`.
 
 ---
 
-### `aura network-access`
+### `aura network`
 
 Enumerate Experience Cloud network configuration: `Network`, `NetworkMemberGroup`, `NetworkSelfRegistration`. The `Network` record exposes the community name, URL prefix, and — when accessible — the guest profile ID (the profile controlling all unauthenticated access). `NetworkMemberGroup` shows which profiles can join the community.
 
 ```bash
-sfmap target.my.site.com aura network-access
+sfmap target.my.site.com aura network
 ```
 
 Output: `network_config.json`.
 
 ---
 
-### `aura idor-probe`
+### `aura idor`
 
 Test whether `getRecord` (Aura) returns actual field data for authenticated records when queried as an unauthenticated guest. Collects record IDs from the authenticated output directory, subtracts IDs already known to be guest-accessible, then probes the remainder against a guest session.
 
 A finding is only raised when the `returnValue` contains real field data — not when Salesforce returns a blocked `onLoadErrorMessage`.
 
 ```bash
-# Requires prior dump-all or dump to populate the output directory
-sfmap target.my.site.com aura dump-all
-sfmap target.my.site.com aura idor-probe
+# Requires prior aura dump to populate the output directory
+sfmap target.my.site.com aura dump
+sfmap target.my.site.com aura idor
 ```
 
 Output: `idor_findings.json`.
 
 ---
 
-### `guest aura`
-
-Unauthenticated object visibility scan. Probes every known object via `getItems` without any session credentials and writes any accessible records to `guest/`.
-
-```bash
-sfmap target.my.site.com guest aura
-```
-
-Uses the cached object list from `aura list-objects` when available. Exits `1` if any guest-readable objects are found.
-
----
-
-### `guest graphql`
-
-Unauthenticated GraphQL `uiapi` object scan — the guest counterpart to `guest aura`. GraphQL applies its own access layer independently of `getItems`, so objects that return nothing via Aura may still expose records via GraphQL as a guest.
-
-```bash
-sfmap target.my.site.com guest graphql
-```
-
-Uses the cached object list when available. Results written to `guest/graphql_*.json`. Exits `1` if any objects return records without authentication.
-
----
-
-### `rest content-enum`
+### `rest content enum`
 
 Enumerate `ContentDocument` and `ContentVersion` records via Aura, then probe each `ContentVersion` ID against the unauthenticated REST endpoint. A HTTP 200 without credentials means the guest profile has **API Enabled** — critical finding.
 
 ```bash
-sfmap target.my.site.com rest content-enum
+sfmap target.my.site.com rest content enum
 ```
 
 ---
 
-### `rest content-download`
+### `rest content download`
 
 Enumerate all ContentDocument/ContentVersion records and download every file via the `servlet.shepherd` endpoint.
 
 ```bash
-sfmap target.my.site.com rest content-download
+sfmap target.my.site.com rest content download
 ```
 
 Output: metadata JSON in the output directory, binaries in `downloads/`.
 
 ---
 
-### `rest content-distribution`
+### `rest content distribution`
 
 Enumerate `ContentDistribution` records and probe each `DistributionPublicUrl` without authentication. A publicly accessible URL means files are shared with anyone who has the link — no session required.
 
 ```bash
-sfmap target.my.site.com rest content-distribution
+sfmap target.my.site.com rest content distribution
 ```
 
 ---
 
-### `rest graphql-introspect`
+### `rest graphql introspect`
 
 Run GraphQL introspection against `aura://RecordUiController/ACTION$executeGraphQL` and the REST GraphQL endpoint. Saves the schema if accessible.
 
 ```bash
-sfmap target.my.site.com rest graphql-introspect
+sfmap target.my.site.com rest graphql introspect
 ```
 
 Output: `graphql/graphql_schema.json`.
 
 ---
 
-### `rest graphql-query`
+### `rest graphql query`
 
 Query all known objects via GraphQL `uiapi` and record accessible record counts. Only objects returning data are written to disk.
 
 ```bash
-sfmap target.my.site.com rest graphql-query
+sfmap target.my.site.com rest graphql query
 ```
 
 Output: `graphql/graphql_{ObjectName}.json` per object with data.
 
 ---
 
-### `rest graphql-dump [OBJECT] [--fields FIELD ...]`
+### `rest graphql dump [OBJECT] [--fields FIELD ...]`
 
 Dump records via GraphQL `uiapi`. Three modes:
 
 | Invocation | Behaviour |
 |---|---|
-| `graphql-dump` | Full sweep: enumerate all visible objects, probe which have data, auto-discover scalar fields, dump each |
-| `graphql-dump OBJECT` | Auto-discover scalar fields for one object then dump it |
-| `graphql-dump OBJECT --fields F1 F2` | Explicit fields (dot notation: `Profile.Name` → `Profile { Name { value } }`) |
+| `graphql dump` | Full sweep: enumerate all visible objects, probe which have data, auto-discover scalar fields, dump each |
+| `graphql dump OBJECT` | Auto-discover scalar fields for one object then dump it |
+| `graphql dump OBJECT --fields F1 F2` | Explicit fields (dot notation: `Profile.Name` → `Profile { Name { value } }`) |
 
 ```bash
-sfmap target.my.site.com rest graphql-dump
-sfmap target.my.site.com rest graphql-dump StaticResource
-sfmap target.my.site.com rest graphql-dump Knowledge__kav --fields Title Summary PublishStatus UrlName
-sfmap target.my.site.com rest graphql-dump User --fields Name Email Profile.Name
+sfmap target.my.site.com rest graphql dump
+sfmap target.my.site.com rest graphql dump StaticResource
+sfmap target.my.site.com rest graphql dump Knowledge__kav --fields Title Summary PublishStatus UrlName
+sfmap target.my.site.com rest graphql dump User --fields Name Email Profile.Name
 ```
 
 Output: `graphql_dump_{ObjectName}.json` per object.
@@ -398,26 +369,26 @@ Output: `chatter/chatter_summary.json`.
 
 ---
 
-### `rest static-resources [-w wordlist]`
+### `rest static [-w wordlist]`
 
 Enumerate and download Salesforce static resources. First attempts to list `StaticResource` records via Aura `getItems` to get actual names. Falls back to wordlist fuzzing if the object is not accessible.
 
 ```bash
-sfmap target.my.site.com rest static-resources
-sfmap target.my.site.com rest static-resources -w ./custom_resources.txt
+sfmap target.my.site.com rest static
+sfmap target.my.site.com rest static -w ./custom_resources.txt
 ```
 
-Output: `staticresource_*.bin` (raw downloads) and `staticresource_summary.json` in the output directory. Run trufflehog or similar against the downloads directory for credential detection.
+Output: `staticresource_*.bin` (raw downloads) and `staticresource_summary.json`. Run trufflehog or similar against the downloads directory for credential detection.
 
 ---
 
-### `rest apexrest-fuzz [-w wordlist]`
+### `rest apexrest [-w wordlist]`
 
 Wordlist-fuzz `/services/apexrest/{name}` via GET and POST. Any non-404 response indicates the endpoint exists. HTTP 200 without authentication is a critical finding.
 
 ```bash
-sfmap target.my.site.com rest apexrest-fuzz
-sfmap target.my.site.com rest apexrest-fuzz -w ./my_endpoints.txt
+sfmap target.my.site.com rest apexrest
+sfmap target.my.site.com rest apexrest -w ./my_endpoints.txt
 ```
 
 When `--bearer` is set, the Bearer token is included in the probe requests.
@@ -426,16 +397,12 @@ Output: `apexrest_hits.json`.
 
 ---
 
-### `rest soql-query`
+### `rest soql`
 
 Run a battery of SOQL probe queries via `/services/data/v59.0/query`. Requires an OAuth Bearer token — community sessions are blocked by Salesforce at the platform level.
 
 ```bash
-# With a bearer token
-sfmap target.my.site.com --bearer @bearer.txt rest soql-query
-
-# Without (will report 401 and exit)
-sfmap target.my.site.com rest soql-query
+sfmap target.my.site.com --bearer @bearer.txt rest soql
 ```
 
 Probes: User, Profile, Account, Contact, Lead, Opportunity, Case, ContentDocument, ContentVersion, ApexClass, PermissionSet.
@@ -444,12 +411,12 @@ Output: `soql/soql_{ObjectName}.json` per accessible object, `soql/soql_summary.
 
 ---
 
-### `rest tooling-query`
+### `rest tooling`
 
 Dump Apex source code (classes, triggers, pages, components) via the Salesforce Tooling API. Requires an OAuth Bearer token — community sessions are blocked at the platform level.
 
 ```bash
-sfmap target.my.site.com --bearer @bearer.txt rest tooling-query
+sfmap target.my.site.com --bearer @bearer.txt rest tooling
 ```
 
 Queries: `ApexClass` (Id, Name, Status, Body), `ApexTrigger` (Id, Name, TableEnumOrId, Status, Body), `ApexPage` (Id, Name, Markup), `ApexComponent` (Id, Name, Markup).
@@ -498,18 +465,18 @@ All output is written to a directory derived from the target URL (override with 
 
 ```
 aura_{host}_{path}/
-├── config_data.json           # Cached object list
+├── config_data.json           # Cached object list (aura objects)
 ├── exposure_summary.json      # surface exposure results
-├── crud_probe.json            # aura crud-probe results
-├── injection_findings.json    # aura soql-inject results
-├── idor_findings.json         # aura idor-probe results
-├── apexrest_hits.json         # rest apexrest-fuzz results
-├── staticresource_summary.json  # rest static-resources results
+├── crud_probe.json            # aura crud results
+├── injection_findings.json    # aura inject results
+├── idor_findings.json         # aura idor results
+├── apexrest_hits.json         # rest apexrest results
+├── staticresource_summary.json  # rest static results
 ├── staticresource_*.bin       # downloaded static resource files
-├── network_config.json        # aura network-access results
-├── flow_hits.json             # aura flow-fuzz results
-├── objectinfo_{Object}.json   # aura object-info per object
-├── {Object}__page{N}.json     # aura dump / dump-all pages
+├── network_config.json        # aura network results
+├── flow_hits.json             # aura flow results
+├── objectinfo_{Object}.json   # aura info per object
+├── {Object}__page{N}.json     # aura dump pages
 ├── chatter/
 │   ├── chatter_summary.json
 │   └── rest_*.json
@@ -517,15 +484,13 @@ aura_{host}_{path}/
 │   ├── graphql_schema.json
 │   ├── graphql_{Object}.json
 │   └── graphql_dump_{Object}.json
-├── guest/
-│   └── {Object}__page{N}.json
 ├── soql/
 │   ├── soql_summary.json
 │   └── soql_{Object}.json
 ├── tooling/
 │   └── tooling_{Type}.json
 └── downloads/
-    └── {filename}             # Binary files
+    └── {filename}
 ```
 
 ---
@@ -550,7 +515,7 @@ An internal user is a Salesforce employee/admin who authenticates directly to th
 #   document.cookie.match(/sid=([^;]+)/)[1]
 
 echo "00DAP00000GTNZh!..." > bearer.txt
-sfmap target.my.site.com --bearer @bearer.txt rest soql-query
+sfmap target.my.site.com --bearer @bearer.txt rest soql
 ```
 
 ---
@@ -576,7 +541,7 @@ The `aura.context` object is required for every Aura request. It authenticates t
 | Field | Description |
 |---|---|
 | `mode` | `PROD` on live deployments, `DEV` on scratch orgs |
-| `fwuid` | Framework UID — base64 hash of the Aura bundle. Deployment-specific, changes on Salesforce releases (3×/year) |
+| `fwuid` | Framework UID — base64 hash of the Aura bundle. Deployment-specific, changes on Salesforce releases (3x/year) |
 | `app` | Always `siteforce:communityApp` for Experience Cloud |
 | `loaded` | Component descriptor → build hash map. Server validates these |
 
