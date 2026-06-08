@@ -71,6 +71,7 @@ def get_items(
     object_name: str,
     page_size: int = DEFAULT_PAGE_SIZE,
     page: int = 1,
+    silent: bool = False,
 ) -> dict | None:  # page is 1-based
     """Returns returnValue dict for a single page, or None on failure."""
     mode = "guest" if client.is_guest else "authenticated"
@@ -87,7 +88,11 @@ def get_items(
 
     action = actions[0]
     if action.get("state") == "ERROR":
-        logger.warning(f"{object_name}: {_extract_error(action.get('error', []))}")
+        msg = f"{object_name}: {_extract_error(action.get('error', []))}"
+        if client.is_guest or silent:
+            logger.debug(msg)
+        else:
+            logger.warning(msg)
         return None
 
     return_value = action.get("returnValue", {})
@@ -110,6 +115,28 @@ def get_record(client: AuraClient, record_id: str) -> None:
 
     rv = actions[0].get("returnValue")
     print(json.dumps(rv, ensure_ascii=False, indent=2))
+
+
+def get_object_info(client: AuraClient, object_name: str) -> dict | None:
+    """Fetch field-level metadata via RecordUiController/ACTION$getObjectInfo."""
+    payload = {
+        "actions": [{
+            "id": "oi;a",
+            "descriptor": "aura://RecordUiController/ACTION$getObjectInfo",
+            "callingDescriptor": "UNKNOWN",
+            "params": {"objectApiName": object_name},
+        }]
+    }
+    response = client.aura_post(payload)
+    actions = response.get("actions", [])
+    if not actions:
+        return None
+    action = actions[0]
+    if action.get("state") != "SUCCESS":
+        msg = _extract_error(action.get("error", []))
+        logger.debug(f"getObjectInfo {object_name}: {msg}")
+        return None
+    return action.get("returnValue")
 
 
 def dump_object(

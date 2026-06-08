@@ -1,0 +1,85 @@
+# Common Salesforce Visualforce page names
+# Probed at /apex/{name}
+
+# Community / authentication
+CommunitiesSelfReg
+CommunitiesSelfRegConfirm
+CommunitiesLogin
+CommunitiesLanding
+CommunitiesTemplate
+ForgotPassword
+ForgotPasswordConfirm
+ResetPassword
+ChangePassword
+CheckPasswordResetEmail
+SetupSSOLogin
+SelfRegister
+SelfRegConfirm
+
+# Administration
+SetupAssistant
+AdminPage
+AdminSetup
+SiteLogin
+SiteSelfReg
+SiteRegister
+SiteRegisterConfirm
+SiteTemplate
+
+# Salesforce standard pages
+apex__CommunitiesSelfReg
+ApexGeneratedPage
+
+# Custom community pages
+Home
+Welcome
+Dashboard
+Profile
+Settings
+Account
+Contact
+Case
+Opportunity
+Lead
+Knowledge
+FAQ
+Help
+Support
+Portal
+CustomerPortal
+PartnerPortal
+ServicePortal
+
+# Common custom pages
+login
+logout
+register
+signup
+home
+welcome
+dashboard
+profile
+settings
+search
+account
+contact
+case
+order
+cart
+checkout
+product
+catalog
+request
+submit
+confirm
+success
+error
+maintenance
+
+# Developer / test
+test
+debug
+sandbox
+api
+health
+ping

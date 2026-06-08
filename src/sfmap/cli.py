@@ -14,8 +14,22 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, content, dump, enum, exposure
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, soql
 from .core.utils import common, logbook, storage
+
+
+def _resolve_file_arg(value: str | None, default_file: str) -> str | None:
+    raw = value or f"@{default_file}"
+    if raw.startswith("@"):
+        path = Path(raw[1:])
+        if not path.exists():
+            return None
+        try:
+            return path.read_text(encoding="utf-8-sig").strip() or None
+        except OSError as exc:
+            logger.exception(f"Cannot read file '{path}'")
+            raise SystemExit(1) from exc
+    return raw or None
 
 
 def _build_session(args: argparse.Namespace) -> Session:
@@ -37,11 +51,14 @@ def _build_session(args: argparse.Namespace) -> Session:
     if url != args.url:
         logger.debug(f"Resolved URL: {url} (from {args.url})")
 
+    token = _resolve_file_arg(getattr(args, "token", None), "token.txt") or "undefined"
+    cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt")
+
     return Session(
         url=url,
         context=context,
-        token=args.token or "undefined",
-        cookie=getattr(args, "cookie", None),
+        token=token,
+        cookie=cookie,
     )
 
 
@@ -62,7 +79,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
             logger.info(f"{i}/{len(args.objects)}) Dumping '{obj}'")
             ok = dump.dump_object(
                 client, obj, output_dir,
-                full=args.full,
+                full=True,
                 display=args.display,
                 custom_fields=args.custom_fields,
             )
@@ -91,7 +108,7 @@ def cmd_dump_all(args: argparse.Namespace) -> int:
         for i, obj in enumerate(names, 1):
             logger.info(f"{i}/{len(names)}) {obj}")
             ok = dump.dump_object(client, obj, output_dir,
-                                  full=args.full,
+                                  full=True,
                                   custom_fields=args.custom_fields)
             if not ok:
                 failed.append(obj)
@@ -196,15 +213,82 @@ def cmd_exposure(args: argparse.Namespace) -> int:
         findings += 1
     if summary["custom_controllers"]:
         findings += 1
+    if summary.get("security_headers", {}).get("weaknesses"):
+        findings += 1
+    if summary.get("visualforce"):
+        findings += 1
+    if summary.get("network_config", {}).get("self_registration_enabled"):
+        findings += 1
 
     return 1 if findings else 0
 
 
 def cmd_download(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
-    path = dump.download_file(AuraClient(session), args.sf_id, session.url, output_dir)
+    base_dir = args.output or common.default_output_dir(args.url)
+    downloads_dir = os.path.join(base_dir, "downloads")
+    path = dump.download_file(AuraClient(session), args.sf_id, session.url, downloads_dir)
     return 0 if path else 1
+
+
+def cmd_crud_probe(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        all_objects = enum.list_objects(client)
+        if args.type == "standard":
+            targets = {k: v for k, v in all_objects.items() if not k.endswith("__c")}
+        elif args.type == "custom":
+            targets = {k: v for k, v in all_objects.items() if k.endswith("__c")}
+        else:
+            targets = all_objects
+        findings = crud.probe(client, targets, output_dir)
+    return 1 if findings else 0
+
+
+def cmd_soql_inject(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    apex_hits: list[str] = getattr(args, "apex_hits", None) or []
+    with AuraClient(session) as client:
+        all_objects = enum.list_objects(client)
+        result = injection.run(client, all_objects, apex_hits, output_dir)
+    return 1 if result["findings"] else 0
+
+
+def cmd_chatter(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        summary = chatter.run(client, session.url, output_dir)
+    findings = bool(summary.get("file_upload") or summary.get("aura_objects") or summary.get("rest_endpoints"))
+    return 1 if findings else 0
+
+
+def cmd_graphql_query(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        all_objects = enum.list_objects(client)
+        results = graphql.query_objects(client, list(all_objects.keys()), output_dir)
+    return 1 if any(v > 0 for v in results.values()) else 0
+
+
+def cmd_content_download(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    base_dir = args.output or common.default_output_dir(args.url)
+    downloads_dir = os.path.join(base_dir, "downloads")
+    with AuraClient(session) as client:
+        downloaded = content.download_all(client, session.url, base_dir, downloads_dir)
+    return 0 if downloaded else 1
+
+
+def cmd_graphql_introspect(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        ok = graphql.introspect(client, session.url, output_dir)
+    return 0 if ok else 1
 
 
 def cmd_apex_fuzz(args: argparse.Namespace) -> int:
@@ -220,14 +304,78 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
     return 0 if not hits else 1
 
 
+def cmd_object_info(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    os.makedirs(output_dir, exist_ok=True)
+    with AuraClient(session) as client:
+        objects = args.objects or list(enum.list_objects(client).keys())
+        for obj in objects:
+            info = dump.get_object_info(client, obj)
+            if info:
+                path = os.path.join(output_dir, f"objectinfo_{obj}.json")
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(info, ensure_ascii=False, indent=2))
+                fields = info.get("fields", {})
+                logger.info(f"{obj}: {len(fields)} field(s) — saved to {path}")
+            else:
+                logger.debug(f"{obj}: getObjectInfo returned nothing")
+    return 0
+
+
+def cmd_idor_probe(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    record_ids = idor.collect_ids_from_directory(output_dir)
+    if not record_ids:
+        logger.warning(
+            "No record IDs found in output directory — run 'aura dump-all' first"
+        )
+        return 1
+    logger.info(f"Collected {len(record_ids)} unique record ID(s) from {output_dir}")
+    findings = idor.probe_guest(session, record_ids, output_dir)
+    return 1 if findings else 0
+
+
+def cmd_content_distribution(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        hits = content.check_content_distribution(client, session.url, output_dir)
+    return 1 if hits else 0
+
+
+def cmd_apexrest_fuzz(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        hits = apexrest.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
+    return 1 if hits else 0
+
+
+def cmd_soql_query(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    soql_dir = os.path.join(output_dir, "soql")
+    with AuraClient(session) as client:
+        results = soql.run(client, session.url, soql_dir)
+    return 1 if results else 0
+
+
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-T",
         "--token",
         default=None,
-        help="aura.token value (omit for unauthenticated/guest access)",
+        metavar="VALUE|@FILE",
+        help="aura.token value or @path/to/file. Defaults to @token.txt in the current directory.",
     )
-    parser.add_argument("--cookie", help="Raw Cookie header for authentication")
+    parser.add_argument(
+        "--cookie",
+        default=None,
+        metavar="VALUE|@FILE",
+        help="Raw Cookie header or @path/to/file. Defaults to @cookies.txt in the current directory.",
+    )
     parser.add_argument(
         "--output",
         "-o",
@@ -288,10 +436,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
-        "context",
-        metavar="CONTEXT",
-        nargs="?",
+        "-C",
+        "--context",
         default=None,
+        metavar="VALUE|@FILE",
         help="aura.context as a JSON string or @path/to/file.json. Defaults to @ctx.json in the current directory.",
     )
 
@@ -314,12 +462,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Object name(s) to dump  (e.g. User Account)",
     )
     p_dump.add_argument(
-        "-f",
-        "--full",
-        action="store_true",
-        help="Dump all pages (default: first page only)",
-    )
-    p_dump.add_argument(
         "--display",
         action="store_true",
         help="Print results to stdout as well as saving",
@@ -338,9 +480,6 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["standard", "custom", "both"],
         default="both",
         help="Which object types to dump (default: both)",
-    )
-    p_all.add_argument(
-        "-f", "--full", action="store_true", help="Dump all pages per object"
     )
     p_all.add_argument(
         "--custom-fields",
@@ -373,6 +512,53 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apex method name to fuzz (default: invoke)",
     )
     p_apex.set_defaults(func=cmd_apex_fuzz)
+
+    p_oi = aura_sub.add_parser(
+        "object-info",
+        help="Fetch field-level metadata (getObjectInfo) for one or more objects",
+    )
+    _add_common_args(p_oi)
+    p_oi.add_argument(
+        "objects",
+        nargs="*",
+        metavar="OBJECT",
+        help="Object name(s) to inspect (default: all visible objects)",
+    )
+    p_oi.set_defaults(func=cmd_object_info)
+
+    p_idor = aura_sub.add_parser(
+        "idor-probe",
+        help="Test getRecord access as unauthenticated guest for all IDs in the output directory",
+    )
+    _add_common_args(p_idor)
+    p_idor.set_defaults(func=cmd_idor_probe)
+
+    p_crud = aura_sub.add_parser(
+        "crud-probe",
+        help="Probe create/delete access on visible objects (auto-cleans created records)",
+    )
+    _add_common_args(p_crud)
+    p_crud.add_argument(
+        "--type",
+        choices=["standard", "custom", "both"],
+        default="custom",
+        help="Which object types to probe (default: custom)",
+    )
+    p_crud.set_defaults(func=cmd_crud_probe)
+
+    p_inj = aura_sub.add_parser(
+        "soql-inject",
+        help="Test SOQL injection via getItems where clause and Apex method parameters",
+    )
+    _add_common_args(p_inj)
+    p_inj.add_argument(
+        "--apex-hits",
+        nargs="*",
+        metavar="DESCRIPTOR",
+        default=[],
+        help="Apex descriptors to test (from apex-fuzz output)",
+    )
+    p_inj.set_defaults(func=cmd_soql_inject)
 
     # -- guest group ---------------------------------------------------------
     p_guest = surfaces.add_parser("guest", help="Guest/unauthenticated operations")
@@ -407,6 +593,62 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_ce)
     p_ce.set_defaults(func=cmd_content_enum)
+
+    p_cd = rest_sub.add_parser(
+        "content-download",
+        help="Enumerate and download all ContentDocument/ContentVersion files",
+    )
+    _add_common_args(p_cd)
+    p_cd.set_defaults(func=cmd_content_download)
+
+    p_gql = rest_sub.add_parser(
+        "graphql-introspect",
+        help="Run GraphQL introspection and save schema to output directory",
+    )
+    _add_common_args(p_gql)
+    p_gql.set_defaults(func=cmd_graphql_introspect)
+
+    p_gql_q = rest_sub.add_parser(
+        "graphql-query",
+        help="Query all known objects via GraphQL uiapi and record accessible record counts",
+    )
+    _add_common_args(p_gql_q)
+    p_gql_q.set_defaults(func=cmd_graphql_query)
+
+    p_chat = rest_sub.add_parser(
+        "chatter",
+        help="Enumerate Chatter feeds and probe IP leak via /chatter/handlers/file/body",
+    )
+    _add_common_args(p_chat)
+    p_chat.set_defaults(func=cmd_chatter)
+
+    p_cdist = rest_sub.add_parser(
+        "content-distribution",
+        help="Enumerate ContentDistribution records and probe public file URLs without authentication",
+    )
+    _add_common_args(p_cdist)
+    p_cdist.set_defaults(func=cmd_content_distribution)
+
+    p_ar = rest_sub.add_parser(
+        "apexrest-fuzz",
+        help="Wordlist-fuzz /services/apexrest/ custom REST endpoints",
+    )
+    _add_common_args(p_ar)
+    p_ar.add_argument(
+        "-w",
+        "--wordlist",
+        default=None,
+        metavar="FILE",
+        help="Custom endpoint wordlist (default: bundled sfmap list)",
+    )
+    p_ar.set_defaults(func=cmd_apexrest_fuzz)
+
+    p_soql = rest_sub.add_parser(
+        "soql-query",
+        help="Run probe SOQL queries via /services/data/{v}/query (requires REST API access)",
+    )
+    _add_common_args(p_soql)
+    p_soql.set_defaults(func=cmd_soql_query)
 
     # -- surface group -------------------------------------------------------
     p_surface = surfaces.add_parser("surface", help="Cross-surface mapping")

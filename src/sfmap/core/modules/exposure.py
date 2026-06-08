@@ -1,5 +1,6 @@
 # Built-in imports
 import re
+from importlib.resources import files as resource_files
 from urllib.parse import urljoin, urlparse
 
 # Third-party imports
@@ -9,6 +10,7 @@ from loguru import logger
 from ..client import AuraClient
 from ..session import Session
 from ..utils import storage
+from . import dump
 
 _REST_API_VERSION = "v59.0"
 
@@ -229,6 +231,147 @@ def discover_custom_controllers(client: AuraClient, aura_url: str) -> dict[str, 
     return controllers
 
 
+_SECURITY_HEADERS = [
+    "Content-Security-Policy",
+    "Strict-Transport-Security",
+    "X-Frame-Options",
+    "X-Content-Type-Options",
+    "Referrer-Policy",
+    "Permissions-Policy",
+]
+
+
+def check_security_headers(client: AuraClient, aura_url: str) -> dict:
+    """Check for presence and quality of HTTP security headers."""
+    app_url = _infer_app_url(aura_url)
+    result: dict = {
+        "url_checked": app_url,
+        "present": {},
+        "missing": [],
+        "weaknesses": [],
+    }
+
+    try:
+        resp = client.get(app_url)
+        for header in _SECURITY_HEADERS:
+            value = resp.headers.get(header)
+            if value:
+                result["present"][header] = value
+            else:
+                result["missing"].append(header)
+
+        csp = resp.headers.get("Content-Security-Policy", "")
+        xfo = resp.headers.get("X-Frame-Options", "")
+        hsts = resp.headers.get("Strict-Transport-Security", "")
+
+        if not csp:
+            result["weaknesses"].append("No Content-Security-Policy — XSS risk unmitigated")
+        else:
+            if "unsafe-inline" in csp:
+                result["weaknesses"].append("CSP contains 'unsafe-inline'")
+            if "unsafe-eval" in csp:
+                result["weaknesses"].append("CSP contains 'unsafe-eval'")
+
+        if not xfo and "frame-ancestors" not in csp:
+            result["weaknesses"].append("No X-Frame-Options or CSP frame-ancestors — clickjacking possible")
+
+        if not hsts:
+            result["weaknesses"].append("No HSTS — SSL stripping possible")
+
+        if result["weaknesses"]:
+            for w in result["weaknesses"]:
+                logger.warning(f"Security header weakness: {w}")
+        else:
+            logger.info(f"Security headers: no critical weaknesses ({len(result['present'])} header(s) present)")
+
+    except Exception as exc:
+        result["error"] = str(exc)
+        logger.debug(f"Security header check failed: {exc}")
+
+    return result
+
+
+def check_visualforce(client: AuraClient, aura_url: str) -> dict[str, int]:
+    """Enumerate Visualforce pages at /apex/ using a built-in wordlist."""
+    base = _base_url(aura_url)
+    found: dict[str, int] = {}
+
+    try:
+        wordlist_text = resource_files("sfmap.data").joinpath("vf_pages.txt").read_text(encoding="utf-8")
+        names = [
+            line.strip()
+            for line in wordlist_text.splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+    except Exception as exc:
+        logger.debug(f"VF page wordlist load failed: {exc}")
+        return found
+
+    logger.info(f"Visualforce enumeration: {len(names)} page(s) to probe")
+
+    for name in names:
+        url = f"{base}/apex/{name}"
+        try:
+            resp = client.get(url)
+            sc = resp.status_code
+            if sc not in (404, 410):
+                logger.warning(f"Visualforce page accessible: /apex/{name} (HTTP {sc})")
+                found[name] = sc
+            else:
+                logger.debug(f"VF {name}: HTTP {sc}")
+        except Exception as exc:
+            logger.debug(f"VF probe error {name}: {exc}")
+
+    if not found:
+        logger.info("Visualforce: no pages found")
+
+    return found
+
+
+def check_network_config(client: AuraClient) -> dict:
+    """Inspect Network object records for dangerous community settings."""
+    result: dict = {
+        "records": 0,
+        "self_registration_enabled": False,
+        "allowed_extensions": None,
+        "login_url": None,
+        "raw": [],
+    }
+
+    rv = dump.get_items(client, "Network", page_size=50, page=1, silent=True)
+    if rv is None:
+        logger.info("Network: no records visible (guest or access denied)")
+        return result
+
+    records = rv.get("result", [])
+    result["records"] = rv.get("totalCount", len(records))
+    result["raw"] = records
+
+    for item in records:
+        record = item.get("record", item)
+        fields = record.get("fields", {})
+
+        for field_name, field_val in fields.items():
+            val = field_val.get("value") if isinstance(field_val, dict) else field_val
+            low = field_name.lower()
+
+            if ("selfregistration" in low or ("self" in low and "reg" in low)) and val:
+                result["self_registration_enabled"] = True
+                logger.warning(f"Network: self-registration enabled (field={field_name})")
+
+            if "allowedextension" in low and val:
+                result["allowed_extensions"] = val
+                logger.info(f"Network: allowed file extensions = {val}")
+
+            if ("loginurl" in low or "login_url" in low) and val:
+                result["login_url"] = val
+
+    if result["records"]:
+        logger.info(f"Network: {result['records']} community record(s) inspected")
+
+    return result
+
+
 def run(client: AuraClient, session: Session, output_dir: str | None = None) -> dict:
     summary = {
         "self_registration": check_self_registration(client),
@@ -236,6 +379,9 @@ def run(client: AuraClient, session: Session, output_dir: str | None = None) -> 
         "soap_api": check_soap_api(client, session.url),
         "graphql": check_graphql(client),
         "custom_controllers": discover_custom_controllers(client, session.url),
+        "security_headers": check_security_headers(client, session.url),
+        "visualforce": check_visualforce(client, session.url),
+        "network_config": check_network_config(client),
     }
 
     if output_dir:

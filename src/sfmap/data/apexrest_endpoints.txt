@@ -1,0 +1,115 @@
+# Common Salesforce Community / Experience Cloud ApexREST endpoint names
+# Each name is probed at /services/apexrest/{name} via GET and POST
+
+# Generic patterns
+api
+rest
+services
+data
+query
+search
+lookup
+
+# Authentication / user
+login
+logout
+register
+user
+users
+me
+profile
+account
+accounts
+
+# Community / Experience Cloud
+community
+communities
+portal
+site
+member
+members
+subscription
+
+# Common custom controller patterns
+contact
+contacts
+lead
+leads
+case
+cases
+opportunity
+opportunities
+
+# Knowledge / content
+article
+articles
+knowledge
+document
+documents
+file
+files
+attachment
+attachments
+content
+
+# Commerce / B2B
+product
+products
+catalog
+order
+orders
+cart
+checkout
+price
+pricing
+quote
+quotes
+invoice
+invoices
+
+# Integration patterns
+webhook
+callback
+notify
+notification
+notifications
+event
+events
+sync
+import
+export
+feed
+feeds
+
+# Operations / field service
+work
+workorder
+workrequest
+service
+intervention
+request
+requests
+report
+reports
+task
+tasks
+
+# CRM
+campaign
+campaigns
+contract
+contracts
+asset
+assets
+entitlement
+entitlements
+
+# Developer / utility
+ping
+health
+status
+version
+info
+test
+debug
+validate

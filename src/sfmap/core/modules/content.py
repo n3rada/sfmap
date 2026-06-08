@@ -102,6 +102,110 @@ def probe_rest(
     return accessible
 
 
+def download_all(
+    client: AuraClient,
+    aura_url: str,
+    output_dir: str,
+    download_dir: str,
+) -> int:
+    """
+    Enumerate ContentDocument + ContentVersion via Aura then download every
+    file through the servlet.shepherd endpoint.
+
+    Metadata JSON is written to *output_dir*; binary files go to *download_dir*.
+    Returns the number of files successfully downloaded.
+    """
+    found = enumerate_content(client, output_dir)
+
+    all_ids: list[str] = []
+    for ids in found.values():
+        all_ids.extend(ids)
+
+    if not all_ids:
+        logger.info("No content records found — nothing to download.")
+        return 0
+
+    logger.info(f"Downloading {len(all_ids)} file(s) to {download_dir}")
+    downloaded = 0
+    for sf_id in all_ids:
+        path = dump.download_file(client, sf_id, aura_url, download_dir)
+        if path:
+            downloaded += 1
+
+    logger.success(f"Downloaded {downloaded}/{len(all_ids)} file(s)")
+    return downloaded
+
+
+def check_content_distribution(
+    client: AuraClient,
+    aura_url: str,
+    output_dir: str,
+) -> list[dict]:
+    """
+    Enumerate ContentDistribution records and probe each public URL without auth.
+    ContentDistribution exposes files as publicly shareable links — if the link
+    is active and not expired, anyone with the URL can download the file.
+    Returns list of accessible distribution records.
+    """
+    rv = dump.get_items(client, "ContentDistribution", page_size=1000, page=1)
+    if rv is None:
+        logger.info("ContentDistribution: no records visible")
+        return []
+
+    results = rv.get("result", [])
+    total = rv.get("totalCount", len(results))
+    logger.info(f"ContentDistribution: {total} record(s) found")
+    dump.write_page(output_dir, "ContentDistribution", 1, rv)
+
+    public_hits: list[dict] = []
+    parsed = urlparse(aura_url)
+    base = f"{parsed.scheme}://{parsed.netloc}"
+
+    for item in results:
+        record = item.get("record", item)
+        dist_id = record.get("id") or record.get("Id")
+        fields = record.get("fields", {})
+
+        pub_url: str | None = None
+        for field_name, field_val in fields.items():
+            low = field_name.lower()
+            if "public" in low and "url" in low:
+                pub_url = field_val.get("value") if isinstance(field_val, dict) else field_val
+                break
+            if "distributionpublicurl" in low or "contentdownloadurl" in low:
+                pub_url = field_val.get("value") if isinstance(field_val, dict) else field_val
+                break
+
+        if not pub_url and dist_id:
+            pub_url = f"{base}/sfc/p/#{dist_id}"
+
+        if not pub_url:
+            continue
+
+        try:
+            with httpx.Client(verify=False, follow_redirects=True, timeout=10) as http:
+                resp = http.get(pub_url)
+            if resp.status_code == 200:
+                logger.warning(f"ContentDistribution public URL accessible: {pub_url} ({len(resp.content):,} bytes)")
+                public_hits.append({
+                    "id": dist_id,
+                    "url": pub_url,
+                    "status": resp.status_code,
+                    "size": len(resp.content),
+                })
+            else:
+                logger.debug(f"ContentDistribution {dist_id}: HTTP {resp.status_code}")
+        except Exception as exc:
+            logger.debug(f"ContentDistribution URL probe error for {dist_id}: {exc}")
+
+    if public_hits:
+        logger.warning(f"ContentDistribution: {len(public_hits)} publicly accessible file(s)")
+    else:
+        logger.info("ContentDistribution: no publicly accessible files found")
+
+    return public_hits
+
+
 def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
     """
     Full content-enumeration check.
