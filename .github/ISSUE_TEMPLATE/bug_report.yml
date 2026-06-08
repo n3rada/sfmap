@@ -1,0 +1,49 @@
+name: Bug report
+description: Something is broken or behaving unexpectedly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Include the full command and output. Redact credentials and target hostnames before posting.
+
+  - type: input
+    id: command
+    attributes:
+      label: Command
+      description: The exact sfmap command that triggered the issue (redact URL/credentials)
+      placeholder: "sfmap target.my.site.com aura dump User"
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Full terminal output (use --debug for more detail)
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: sfmap version
+      placeholder: "uv run sfmap --version"
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "python3 --version"
+    validations:
+      required: false

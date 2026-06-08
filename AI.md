@@ -10,10 +10,13 @@ This file is the canonical AI guidance for this repository.
 ## Read Order
 
 1. [README.md](README.md) — CLI behavior, command reference, authentication concepts.
-2. [src/sfmap/cli.py](src/sfmap/cli.py) — parser construction and command handler wiring.
-3. [src/sfmap/core/client.py](src/sfmap/core/client.py) — `AuraClient`, session auth model.
-4. [src/sfmap/core/session.py](src/sfmap/core/session.py) — `Session`, guest detection.
-5. [src/sfmap/core/modules/](src/sfmap/core/modules/) — one module per capability surface.
+2. [DEVELOPMENT.md](DEVELOPMENT.md) — architecture, data flow, module contracts, extension model (source of truth for structural decisions).
+3. [src/sfmap/cli.py](src/sfmap/cli.py) — parser construction and command handler wiring.
+4. [src/sfmap/core/client.py](src/sfmap/core/client.py) — `AuraClient`, session auth model.
+5. [src/sfmap/core/session.py](src/sfmap/core/session.py) — `Session`, guest detection.
+6. [src/sfmap/core/modules/](src/sfmap/core/modules/) — one module per capability surface.
+
+If this file and [DEVELOPMENT.md](DEVELOPMENT.md) ever diverge on architecture or design decisions, follow [DEVELOPMENT.md](DEVELOPMENT.md).
 
 ## Source Map
 

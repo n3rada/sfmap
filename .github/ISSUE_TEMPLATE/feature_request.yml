@@ -1,0 +1,32 @@
+name: Feature request
+description: Suggest a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the Salesforce surface or access vector you want sfmap to cover.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What gap does this fill?
+      description: Which Salesforce surface, endpoint, or data access path is not currently covered?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed behavior
+      description: How should the command work? What would the output look like?
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References
+      description: Relevant Salesforce documentation, research, or prior art (optional)
+    validations:
+      required: false
