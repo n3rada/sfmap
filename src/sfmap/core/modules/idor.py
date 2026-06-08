@@ -119,7 +119,7 @@ def probe_guest(
     findings: list[dict] = []
     logger.info(f"IDOR probe: testing {len(record_ids)} record IDs as unauthenticated guest")
 
-    with AuraClient(guest_session, authenticated=False) as guest_client:
+    with AuraClient(guest_session) as guest_client:
         for i, record_id in enumerate(record_ids, 1):
             logger.debug(f"[{i}/{len(record_ids)}] getRecord {record_id}")
             try:

@@ -127,17 +127,13 @@ def cmd_record(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_guest(args: argparse.Namespace) -> int:
-    session = _build_session(args)
-    base_dir = args.output or common.default_output_dir(args.url)
-    guest_dir = os.path.join(base_dir, "guest")
-
+def _guest_session(session: Session) -> Session:
+    """Return a credential-stripped session for unauthenticated probing."""
+    if session.is_guest:
+        return session
     if session.token != "undefined" or session.cookie:
-        logger.warning(
-            "guest runs unauthenticated; any -T / --cookie flags passed here are ignored"
-        )
-    # Always strip credentials for the guest run
-    session = Session(
+        logger.debug("Running in guest mode: credentials stripped")
+    return Session(
         url=session.url,
         context=session.context,
         token="undefined",
@@ -145,20 +141,20 @@ def cmd_guest(args: argparse.Namespace) -> int:
         guest_mode=True,
     )
 
+
+def cmd_guest(args: argparse.Namespace) -> int:
+    session = _guest_session(_build_session(args))
+    base_dir = args.output or common.default_output_dir(args.url)
+    guest_dir = os.path.join(base_dir, "guest")
+
     cached = storage.load_config_data(session.url)
     if cached:
         objects: dict[str, str] = cached
-        logger.info(
-            f"Using cached object list ({len(objects)} objects, "
-            "run 'aura list-objects' to refresh)"
-        )
+        logger.info(f"Using cached object list ({len(objects)} objects)")
     else:
-        logger.info(
-            "No cache, enumerating objects as guest "
-            "(run 'aura list-objects' with credentials for wider coverage)"
-        )
+        logger.info("No cache, enumerating objects as guest (run 'aura list-objects' with credentials for wider coverage)")
         try:
-            with AuraClient(session, authenticated=False) as c:
+            with AuraClient(session) as c:
                 objects = enum.list_objects(c)
         except RuntimeError as exc:
             logger.error(f"Guest enumeration failed: {exc}")
@@ -167,7 +163,7 @@ def cmd_guest(args: argparse.Namespace) -> int:
     logger.info(f"Probing {len(objects)} objects via Aura guest mode")
     aura_readable: dict[str, int] = {}
 
-    with AuraClient(session, authenticated=False) as client:
+    with AuraClient(session) as client:
         for i, obj_name in enumerate(objects, 1):
             logger.debug(f"[{i}/{len(objects)}] {obj_name}")
             rv = dump.get_items(client, obj_name, page_size=100, page=1)
@@ -176,46 +172,36 @@ def cmd_guest(args: argparse.Namespace) -> int:
             results = rv.get("result", [])
             if results:
                 total = rv.get("totalCount", len(results))
-                logger.warning(
-                    f"GUEST: {obj_name}: {len(results)} record(s) (total: {total})"
-                )
+                logger.warning(f"GUEST: {obj_name}: {len(results)} record(s) (total: {total})")
                 aura_readable[obj_name] = total
                 dump.write_page(guest_dir, obj_name, 1, rv)
 
     if aura_readable:
         logger.warning(f"{len(aura_readable)} Aura-readable object(s) found")
         return 1
-    logger.success("No guest-accessible objects or files found.")
+    logger.success("No guest-accessible objects found.")
     return 0
 
 
 def cmd_guest_graphql(args: argparse.Namespace) -> int:
-    session = _build_session(args)
+    session = _guest_session(_build_session(args))
     base_dir = args.output or common.default_output_dir(args.url)
     guest_dir = os.path.join(base_dir, "guest")
-
-    guest_session = Session(
-        url=session.url,
-        context=session.context,
-        token="undefined",
-        cookie=None,
-        guest_mode=True,
-    )
 
     cached = storage.load_config_data(session.url)
     if cached:
         object_names = list(cached.keys())
         logger.info(f"Guest GraphQL scan: {len(object_names)} objects from cache")
     else:
-        logger.info("No cache — enumerating objects first (run 'aura list-objects' for better coverage)")
-        with AuraClient(guest_session, authenticated=False) as c:
+        logger.info("No cache — run 'aura list-objects' with credentials for wider coverage")
+        with AuraClient(session) as c:
             object_names = list(enum.list_objects(c).keys())
 
     if not object_names:
         logger.info("Guest GraphQL scan: no objects to probe")
         return 0
 
-    with AuraClient(guest_session, authenticated=False) as client:
+    with AuraClient(session) as client:
         results = graphql.query_objects(client, object_names, guest_dir)
 
     hits = {k: v for k, v in results.items() if v > 0}
@@ -721,7 +707,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Output directory (default: derived from URL)",
     )
-    p_guest_aura.set_defaults(func=cmd_guest, token=None, cookie=None)
+    p_guest_aura.set_defaults(func=cmd_guest)
 
     p_guest_gql = guest_sub.add_parser(
         "graphql",
@@ -733,7 +719,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="DIR",
         help="Output directory (default: derived from URL)",
     )
-    p_guest_gql.set_defaults(func=cmd_guest_graphql, token=None, cookie=None)
+    p_guest_gql.set_defaults(func=cmd_guest_graphql)
 
     # -- rest group ----------------------------------------------------------
     p_rest = surfaces.add_parser("rest", help="REST surface operations")

@@ -20,11 +20,14 @@ USER_AGENT = (
 
 class AuraClient:
     def __init__(
-        self, session: Session, authenticated: bool = True, verify_ssl: bool = False
+        self, session: Session, authenticated: bool | None = None, verify_ssl: bool = False
     ):
         self._session = session
+        # If caller doesn't specify, derive from session: guest session → unauthenticated
+        if authenticated is None:
+            authenticated = not session.is_guest
         self._authenticated = authenticated
-        self._guest_mode = session.is_guest or (not authenticated)
+        self._guest_mode = not authenticated
         self._http = httpx.Client(
             verify=verify_ssl,
             cookies=session.cookies_dict if authenticated else {},
