@@ -264,6 +264,9 @@ _SCALAR_TYPES = {
     "Currency", "Percent", "AutoNumber",
 }
 
+# Used when getObjectInfo is blocked — covers fields present on nearly all objects
+_FALLBACK_FIELDS = ["Name", "CreatedDate", "LastModifiedDate", "Description", "Status"]
+
 
 def autodump(
     client: AuraClient,
@@ -294,18 +297,18 @@ def autodump(
     results: dict[str, int] = {}
     for obj_name in object_names:
         info = _dump.get_object_info(client, obj_name)
-        if not info:
-            logger.debug(f"GraphQL autodump {obj_name}: no object info, skipping")
-            continue
-
-        fields_meta = info.get("fields", {})
-        fields = [
-            name for name, meta in fields_meta.items()
-            if meta.get("dataType") in _SCALAR_TYPES and name != "Id"
-        ][:max_fields]
+        if info:
+            fields_meta = info.get("fields", {})
+            fields = [
+                name for name, meta in fields_meta.items()
+                if meta.get("dataType") in _SCALAR_TYPES and name != "Id"
+            ][:max_fields]
+        else:
+            logger.debug(f"GraphQL autodump {obj_name}: getObjectInfo blocked, using fallback fields")
+            fields = _FALLBACK_FIELDS
 
         if not fields:
-            logger.debug(f"GraphQL autodump {obj_name}: no scalar fields found")
+            logger.debug(f"GraphQL autodump {obj_name}: no fields to query")
             continue
 
         logger.info(f"GraphQL autodump {obj_name}: querying {len(fields)} field(s)")

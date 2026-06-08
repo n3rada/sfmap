@@ -55,6 +55,8 @@ Modules call `client.aura_post()` or `client.rest_get()` — never `httpx` direc
 
 **`idor.py`** — Collects IDs from authenticated output directory, subtracts guest-known IDs, probes remainder as guest. Only flags records where `returnValue` contains actual field data, not just `onLoadErrorMessage`.
 
+**`reporter.py`** — `generate(output_dir, target)`. Scans an existing output directory for all known finding file patterns (`graphql_dump_*.json`, `graphql/*.json`, `*__page*.json`, `idor_findings.json`, `chatter_summary.json`, `network_config.json`, `staticresource_summary.json`, `flow_hits.json`, `crud_findings.json`, `apexrest_hits.json`, `exposure_summary.json`) and produces a single self-contained `report.html`. Sections that have no backing data are omitted. No network access, no credentials needed.
+
 **`exposure.py`** — Cross-surface check: self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config. Each check is isolated and returns a result dict with an `error` key on failure.
 
 ## CLI Extension Model

@@ -14,7 +14,7 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, network, relatedlist, soql, staticresource, tooling
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, network, relatedlist, reporter, soql, staticresource, tooling
 from .core.utils import common, logbook, storage
 
 
@@ -348,6 +348,15 @@ def cmd_soql_query(args: argparse.Namespace) -> int:
     return 1 if results else 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    output_dir = args.output or common.default_output_dir(args.url)
+    if not os.path.isdir(output_dir):
+        logger.error(f"Output directory not found: {output_dir}")
+        return 1
+    reporter.generate(output_dir, target=args.url)
+    return 0
+
+
 def cmd_tooling_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -602,6 +611,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_chatter)
     p_chatter.set_defaults(func=cmd_chatter)
+
+    # -- report --------------------------------------------------------------
+    p_report = surfaces.add_parser(
+        "report",
+        help="Generate a self-contained HTML report from an existing output directory",
+    )
+    p_report.add_argument(
+        "--output", "-o", metavar="DIR",
+        help="Output directory to read (default: derived from URL)",
+    )
+    p_report.set_defaults(func=cmd_report)
 
     # -- surface -------------------------------------------------------------
     p_surface = surfaces.add_parser("surface", help="Cross-surface exposure mapping")

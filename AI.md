@@ -36,6 +36,7 @@ If this file and [DEVELOPMENT.md](DEVELOPMENT.md) ever diverge on architecture o
 - Tooling API: [src/sfmap/core/modules/tooling.py](src/sfmap/core/modules/tooling.py)
 - Static resources: [src/sfmap/core/modules/staticresource.py](src/sfmap/core/modules/staticresource.py)
 - Cross-surface exposure: [src/sfmap/core/modules/exposure.py](src/sfmap/core/modules/exposure.py)
+- HTML report generator: [src/sfmap/core/modules/reporter.py](src/sfmap/core/modules/reporter.py)
 - Bundled wordlists: [src/sfmap/data/](src/sfmap/data/)
 
 ## Architecture and Design Principles
@@ -71,6 +72,8 @@ Surfaces: `aura`, `rest`, `surface`, `files`.
 `aura` commands: `objects`, `dump`, `record`, `info`, `related`, `idor`, `crud`, `inject`, `apex`, `flow`, `network`.
 
 `rest` flat commands: `static`, `apexrest`, `soql`, `tooling`, `chatter`.
+
+`report`: reads an existing output directory and generates a self-contained HTML file (`report.html`). No credentials required.
 
 ## Python Rules
 
