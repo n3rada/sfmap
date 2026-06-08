@@ -459,6 +459,73 @@ def _section_apex(output_dir: str) -> str:
     return "\n".join(out)
 
 
+def _section_guest_vs_auth(output_dir: str) -> str:
+    """
+    Compare unauthenticated vs authenticated GraphQL access.
+
+    Root-level graphql_dump_*.json files are produced by unauthenticated autodump.
+    graphql/*.json files are produced by the authenticated query sweep.
+    The difference surface shows what is exposed without any credentials.
+    """
+    guest_objects: dict[str, int] = {}
+    for path in sorted(glob.glob(os.path.join(output_dir, "graphql_dump_*.json"))):
+        obj_name = re.sub(r"^graphql_dump_", "", os.path.basename(path)[:-5])
+        data = _load_json(path)
+        count = len(data) if isinstance(data, list) else 0
+        guest_objects[obj_name] = count
+
+    auth_objects: dict[str, int] = {}
+    graphql_dir = os.path.join(output_dir, "graphql")
+    if os.path.isdir(graphql_dir):
+        for path in sorted(glob.glob(os.path.join(graphql_dir, "graphql_*.json"))):
+            name = os.path.basename(path)
+            if name == "graphql_schema.json":
+                continue
+            obj_name = re.sub(r"^graphql_", "", name[:-5])
+            data = _load_json(path)
+            if isinstance(data, dict):
+                total = (
+                    data.get("data", {})
+                        .get("uiapi", {})
+                        .get("query", {})
+                        .get(obj_name, {})
+                        .get("totalCount", 0)
+                ) or 0
+                auth_objects[obj_name] = total
+
+    if not guest_objects and not auth_objects:
+        return ""
+
+    guest_set = set(guest_objects)
+    auth_set = set(auth_objects)
+    both = sorted(guest_set & auth_set)
+    guest_only = sorted(guest_set - auth_set)
+    auth_only = sorted(auth_set - guest_set)
+
+    out = ['<section id="guest-auth-diff">',
+           '<h2>Access Comparison — Unauthenticated vs Authenticated</h2>',
+           '<p>Objects accessible without credentials (root <code>graphql_dump_*</code>) compared to objects returned in the authenticated GraphQL sweep (<code>graphql/</code>).</p>']
+
+    if guest_objects:
+        out.append(f'<h3>Accessible Without Authentication ({len(guest_objects)} objects)</h3>')
+        out.append('<table><thead><tr><th>Object</th><th>Records Extracted</th><th>Also in Authenticated Sweep</th></tr></thead><tbody>')
+        for obj in sorted(guest_objects, key=lambda x: -guest_objects[x]):
+            count = guest_objects[obj]
+            also_auth = "yes" if obj in auth_set else "no"
+            out.append(f'<tr><td><code>{_h(obj)}</code></td><td class="count">{count:,}</td><td>{also_auth}</td></tr>')
+        out.append('</tbody></table>')
+
+    if auth_only:
+        out.append(f'<h3>Additional Objects Accessible Authenticated Only ({len(auth_only)} objects)</h3>')
+        out.append('<table><thead><tr><th>Object</th><th>Total Records</th></tr></thead><tbody>')
+        for obj in sorted(auth_only, key=lambda x: -auth_objects[x]):
+            out.append(f'<tr><td><code>{_h(obj)}</code></td><td class="count">{auth_objects[obj]:,}</td></tr>')
+        out.append('</tbody></table>')
+
+    out.append('</section>')
+    return "\n".join(out)
+
+
 def generate(output_dir: str, target: str | None = None) -> str:
     """
     Scan output_dir for finding files and generate a self-contained HTML report.
@@ -470,6 +537,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
     date_str = datetime.now().strftime("%Y-%m-%d")
 
     sections = [
+        ("guest-auth-diff", "Access Comparison — Unauthenticated vs Authenticated", _section_guest_vs_auth(output_dir)),
         ("graphql-query", "GraphQL Object Query Sweep", _section_graphql_query(output_dir)),
         ("graphql-dumps", "GraphQL Field-Level Dumps", _section_graphql_dumps(output_dir)),
         ("aura-dump", "Aura Object Dump (getItems)", _section_aura_dump(output_dir)),
