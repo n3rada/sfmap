@@ -189,6 +189,43 @@ def cmd_guest(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_guest_graphql(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    base_dir = args.output or common.default_output_dir(args.url)
+    guest_dir = os.path.join(base_dir, "guest")
+
+    guest_session = Session(
+        url=session.url,
+        context=session.context,
+        token="undefined",
+        cookie=None,
+        guest_mode=True,
+    )
+
+    cached = storage.load_config_data(session.url)
+    if cached:
+        object_names = list(cached.keys())
+        logger.info(f"Guest GraphQL scan: {len(object_names)} objects from cache")
+    else:
+        logger.info("No cache — enumerating objects first (run 'aura list-objects' for better coverage)")
+        with AuraClient(guest_session, authenticated=False) as c:
+            object_names = list(enum.list_objects(c).keys())
+
+    if not object_names:
+        logger.info("Guest GraphQL scan: no objects to probe")
+        return 0
+
+    with AuraClient(guest_session, authenticated=False) as client:
+        results = graphql.query_objects(client, object_names, guest_dir)
+
+    hits = {k: v for k, v in results.items() if v > 0}
+    if hits:
+        logger.warning(f"Guest GraphQL: {len(hits)} object(s) accessible without authentication")
+        return 1
+    logger.success("Guest GraphQL: no objects accessible without authentication.")
+    return 0
+
+
 def cmd_content_enum(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -270,18 +307,20 @@ def cmd_chatter(args: argparse.Namespace) -> int:
 def cmd_graphql_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
+    obj = getattr(args, "object", None)
+    fields = getattr(args, "fields", None) or []
     with AuraClient(session) as client:
-        nodes = graphql.dump_object(client, args.object, args.fields, output_dir)
-    return 1 if nodes else 0
-
-
-def cmd_graphql_autodump(args: argparse.Namespace) -> int:
-    session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
-    objects = getattr(args, "objects", None) or None
-    with AuraClient(session) as client:
-        results = graphql.autodump(client, output_dir, object_names=objects)
-    return 1 if results else 0
+        if obj and fields:
+            # Explicit: one object with named fields
+            result = graphql.dump_object(client, obj, fields, output_dir)
+            return 1 if result else 0
+        elif obj:
+            # Auto-discover fields for one object
+            result = graphql.autodump(client, output_dir, object_names=[obj])
+        else:
+            # Full sweep: discover all accessible objects + fields
+            result = graphql.autodump(client, output_dir, object_names=None)
+    return 1 if result else 0
 
 
 def cmd_graphql_query(args: argparse.Namespace) -> int:
@@ -684,6 +723,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_guest_aura.set_defaults(func=cmd_guest, token=None, cookie=None)
 
+    p_guest_gql = guest_sub.add_parser(
+        "graphql",
+        help="Unauthenticated GraphQL uiapi object scan — complements 'guest aura'",
+    )
+    p_guest_gql.add_argument(
+        "--output",
+        "-o",
+        metavar="DIR",
+        help="Output directory (default: derived from URL)",
+    )
+    p_guest_gql.set_defaults(func=cmd_guest_graphql, token=None, cookie=None)
+
     # -- rest group ----------------------------------------------------------
     p_rest = surfaces.add_parser("rest", help="REST surface operations")
     rest_sub = p_rest.add_subparsers(dest="rest_command", required=True)
@@ -712,38 +763,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_gql_d = rest_sub.add_parser(
         "graphql-dump",
-        help="Dump all records of an object via GraphQL with specified field values",
+        help=(
+            "Dump records via GraphQL uiapi. No args: full sweep of all visible objects "
+            "with auto-discovered fields. With OBJECT: auto-discover fields for that object. "
+            "With OBJECT --fields: use explicit field list."
+        ),
     )
     _add_common_args(p_gql_d)
-    p_gql_d.add_argument("object", metavar="OBJECT", help="Salesforce object API name (e.g. User, Knowledge__kav)")
+    p_gql_d.add_argument(
+        "object",
+        nargs="?",
+        default=None,
+        metavar="OBJECT",
+        help="Salesforce object API name (optional — omit for full sweep)",
+    )
     p_gql_d.add_argument(
         "--fields",
         nargs="+",
-        required=True,
+        default=None,
         metavar="FIELD",
-        help="Fields to retrieve using dot notation (e.g. Name Email Profile.Name). Scalars are wrapped in { value } automatically.",
+        help="Fields in dot notation (e.g. Name Email Profile.Name). Auto-discovered if omitted.",
     )
     p_gql_d.set_defaults(func=cmd_graphql_dump)
-
-    p_gql_auto = rest_sub.add_parser(
-        "graphql-autodump",
-        help=(
-            "Auto-discover accessible GraphQL objects, resolve their scalar fields "
-            "via getObjectInfo, and dump all records. Runs graphql-query + object-info "
-            "then graphql-dump for every object that returned data."
-        ),
-    )
-    _add_common_args(p_gql_auto)
-    p_gql_auto.add_argument(
-        "objects",
-        nargs="*",
-        metavar="OBJECT",
-        help=(
-            "Specific object API names to dump (optional). "
-            "If omitted, all visible objects are scanned first."
-        ),
-    )
-    p_gql_auto.set_defaults(func=cmd_graphql_autodump)
 
     p_gql = rest_sub.add_parser(
         "graphql-introspect",

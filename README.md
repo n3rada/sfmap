@@ -297,6 +297,18 @@ Uses the cached object list from `aura list-objects` when available. Exits `1` i
 
 ---
 
+### `guest graphql`
+
+Unauthenticated GraphQL `uiapi` object scan — the guest counterpart to `guest aura`. GraphQL applies its own access layer independently of `getItems`, so objects that return nothing via Aura may still expose records via GraphQL as a guest.
+
+```bash
+sfmap target.my.site.com guest graphql
+```
+
+Uses the cached object list when available. Results written to `guest/graphql_*.json`. Exits `1` if any objects return records without authentication.
+
+---
+
 ### `rest content-enum`
 
 Enumerate `ContentDocument` and `ContentVersion` records via Aura, then probe each `ContentVersion` ID against the unauthenticated REST endpoint. A HTTP 200 without credentials means the guest profile has **API Enabled** — critical finding.
@@ -353,33 +365,24 @@ Output: `graphql/graphql_{ObjectName}.json` per object with data.
 
 ---
 
-### `rest graphql-dump OBJECT --fields FIELD [...]`
+### `rest graphql-dump [OBJECT] [--fields FIELD ...]`
 
-Dump all records for a specific object via GraphQL `uiapi`. Fields use dot notation — `Name` becomes `Name { value }`, `Profile.Name` becomes `Profile { Name { value } }`. Paginates automatically.
+Dump records via GraphQL `uiapi`. Three modes:
+
+| Invocation | Behaviour |
+|---|---|
+| `graphql-dump` | Full sweep: enumerate all visible objects, probe which have data, auto-discover scalar fields, dump each |
+| `graphql-dump OBJECT` | Auto-discover scalar fields for one object then dump it |
+| `graphql-dump OBJECT --fields F1 F2` | Explicit fields (dot notation: `Profile.Name` → `Profile { Name { value } }`) |
 
 ```bash
-sfmap target.my.site.com rest graphql-dump StaticResource --fields Name ContentType
+sfmap target.my.site.com rest graphql-dump
+sfmap target.my.site.com rest graphql-dump StaticResource
 sfmap target.my.site.com rest graphql-dump Knowledge__kav --fields Title Summary PublishStatus UrlName
 sfmap target.my.site.com rest graphql-dump User --fields Name Email Profile.Name
 ```
 
-Output: `graphql_dump_{ObjectName}.json`.
-
----
-
-### `rest graphql-autodump [OBJECT ...]`
-
-Automatically discover all GraphQL-accessible objects, resolve their scalar fields via `getObjectInfo`, and dump every record. Without arguments, runs a full sweep: enumerate all visible objects, filter to those with accessible records, then dump each with all scalar fields.
-
-```bash
-# Full sweep — enumerate, discover fields, dump everything
-sfmap target.my.site.com rest graphql-autodump
-
-# Target specific objects
-sfmap target.my.site.com rest graphql-autodump User Contact Account
-```
-
-Output: `graphql_dump_{ObjectName}.json` per object with records.
+Output: `graphql_dump_{ObjectName}.json` per object.
 
 ---
 
