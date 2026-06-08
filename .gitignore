@@ -1,8 +1,9 @@
 # Project specific
 https_*
 ctx.json
-run_assessment.py
-assessment_report.md
+cookies.txt
+token.txt
+aura_*/
 
 ./venv
 
