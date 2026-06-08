@@ -4,7 +4,6 @@ import os
 from urllib.parse import urlparse
 
 # Third-party imports
-import httpx
 from loguru import logger
 
 # Local imports
