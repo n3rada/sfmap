@@ -14,7 +14,7 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, soql
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, soql, staticresource
 from .core.utils import common, logbook, storage
 
 
@@ -355,6 +355,15 @@ def cmd_apexrest_fuzz(args: argparse.Namespace) -> int:
     return 1 if hits else 0
 
 
+def cmd_static_resources(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        hits = staticresource.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
+    sensitive = sum(len(h.get("sensitive_findings", [])) for h in hits)
+    return 1 if sensitive else (0 if not hits else 0)
+
+
 def cmd_soql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -654,6 +663,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Custom endpoint wordlist (default: bundled sfmap list)",
     )
     p_ar.set_defaults(func=cmd_apexrest_fuzz)
+
+    p_sr = rest_sub.add_parser(
+        "static-resources",
+        help="Enumerate and inspect Salesforce static resources for hardcoded secrets",
+    )
+    _add_common_args(p_sr)
+    p_sr.add_argument(
+        "-w",
+        "--wordlist",
+        default=None,
+        metavar="FILE",
+        help="Custom resource name wordlist (default: bundled sfmap list)",
+    )
+    p_sr.set_defaults(func=cmd_static_resources)
 
     p_soql = rest_sub.add_parser(
         "soql-query",

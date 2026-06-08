@@ -1,0 +1,74 @@
+# Common Salesforce static resource names
+# Used as fallback when StaticResource is not enumerable via Aura
+
+# Salesforce platform
+SLDS
+salesforce-lightning-design-system
+LightningDesignSystem
+sfdc_mobile
+force
+
+# JavaScript libraries
+jquery
+jQuery
+bootstrap
+Bootstrap
+react
+angular
+vue
+lodash
+underscore
+moment
+axios
+d3
+
+# Community / Experience Cloud common
+communityApp
+CommunityResources
+SiteResources
+AppResources
+PortalResources
+CommunitySkin
+BrandingSet
+Theme
+
+# Visualforce / Aura resources
+appResource
+staticApp
+orgResource
+
+# Fonts / icons
+FontAwesome
+font-awesome
+fa
+glyphicons
+ionicons
+
+# Maps / charts
+leaflet
+Leaflet
+chartjs
+Chart
+highcharts
+Highcharts
+googlemaps
+
+# Common org-specific patterns
+config
+configuration
+settings
+app
+assets
+images
+js
+css
+styles
+scripts
+data
+lib
+libs
+vendor
+common
+shared
+utils
+helpers

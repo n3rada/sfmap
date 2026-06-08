@@ -325,6 +325,27 @@ Output: `chatter/chatter_summary.json`.
 
 ---
 
+### `rest static-resources [-w wordlist]`
+
+Enumerate Salesforce static resources and scan their content for hardcoded secrets. First attempts to list `StaticResource` records via Aura `getItems` to get actual names. Falls back to wordlist fuzzing if the object is not accessible.
+
+Downloads each accessible resource and inspects content (including ZIP archives) for:
+
+- AWS access keys
+- Private keys (`BEGIN RSA/EC PRIVATE KEY`)
+- JWT tokens
+- URLs with embedded credentials
+- Hardcoded API keys and passwords
+
+```bash
+sfmap target.my.site.com rest static-resources
+sfmap target.my.site.com rest static-resources -w ./custom_resources.txt
+```
+
+Output: `staticresource_*.bin` (raw downloads) and `staticresource_summary.json` in the output directory.
+
+---
+
 ### `rest apexrest-fuzz [-w wordlist]`
 
 Wordlist-fuzz `/services/apexrest/{name}` via GET and POST. Any non-404 response indicates the endpoint exists. HTTP 200 without authentication is a critical finding.
@@ -404,6 +425,8 @@ aura_{host}_{path}/
 ├── injection_findings.json    # aura soql-inject results
 ├── idor_findings.json         # aura idor-probe results
 ├── apexrest_hits.json         # rest apexrest-fuzz results
+├── staticresource_summary.json  # rest static-resources results
+├── staticresource_*.bin       # downloaded static resource files
 ├── objectinfo_{Object}.json   # aura object-info per object
 ├── {Object}__page{N}.json     # aura dump / dump-all pages
 ├── chatter/
