@@ -14,7 +14,8 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, network, relatedlist, reporter, soql, staticresource, tooling
+from .core.modules import apex, apexrest, bootstrap, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, listviews, network, relatedlist, reporter, soql, staticresource, tooling
+from .core.utils import autocontext
 from .core.utils import common, logbook, storage
 
 
@@ -33,27 +34,58 @@ def _resolve_file_arg(value: str | None, default_file: str) -> str | None:
 
 
 def _build_session(args: argparse.Namespace) -> Session:
-    raw = args.context or "@ctx.json"
-    if raw.startswith("@"):
-        path = Path(raw[1:])
-        try:
-            raw = path.read_text(encoding="utf-8-sig").strip()
-        except OSError as exc:
-            logger.exception(f"Cannot read context file '{path}'")
-            raise SystemExit(1) from exc
-    try:
-        context = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        logger.exception("context is not valid JSON")
-        raise SystemExit(1) from exc
-
     url = common.resolve_url(args.url)
     if url != args.url:
         logger.debug(f"Resolved URL: {url} (from {args.url})")
 
-    token = _resolve_file_arg(getattr(args, "token", None), "token.txt") or "undefined"
+    # -- context -------------------------------------------------------
+    raw_context = args.context or "@ctx.json"
+    extracted_token: str | None = None
+
+    if raw_context.startswith("@"):
+        path = Path(raw_context[1:])
+        if not path.exists():
+            logger.info(f"No context file found at '{path}', auto-extracting from target")
+            try:
+                context, extracted_token = autocontext.extract(url)
+            except ValueError as exc:
+                logger.error(str(exc))
+                raise SystemExit(1) from exc
+            try:
+                path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+                logger.info(f"Context saved to {path} for future runs")
+            except OSError:
+                pass
+        else:
+            try:
+                raw = path.read_text(encoding="utf-8-sig").strip()
+                context = json.loads(raw)
+            except OSError as exc:
+                logger.exception(f"Cannot read context file '{path}'")
+                raise SystemExit(1) from exc
+            except json.JSONDecodeError as exc:
+                logger.exception(f"Context file '{path}' is not valid JSON")
+                raise SystemExit(1) from exc
+    else:
+        try:
+            context = json.loads(raw_context)
+        except json.JSONDecodeError as exc:
+            logger.exception("context is not valid JSON")
+            raise SystemExit(1) from exc
+
+    # -- credentials ---------------------------------------------------
+    # Resolve cookie first: auto-extracted token is only valid when a session
+    # cookie is also present. Without a cookie the extracted JWT is a guest
+    # CSRF token that the server rejects when no SID accompanies it.
     cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt")
     bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt")
+
+    token_raw = _resolve_file_arg(getattr(args, "token", None), "token.txt")
+    if token_raw is None and extracted_token and cookie:
+        token = extracted_token
+        logger.debug("Using auto-extracted Aura token from page HTML")
+    else:
+        token = token_raw or "undefined"
 
     return Session(
         url=url,
@@ -348,6 +380,23 @@ def cmd_soql_query(args: argparse.Namespace) -> int:
     return 1 if results else 0
 
 
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        results = bootstrap.fetch(client, output_dir)
+    return 1 if results else 0
+
+
+def cmd_list_views(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        all_objects = enum.list_objects(client)
+        urls = listviews.sweep(client, list(all_objects.keys()), output_dir)
+    return 1 if urls else 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     output_dir = args.output or common.default_output_dir(args.url)
     if not os.path.isdir(output_dir):
@@ -530,6 +579,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_network)
     p_network.set_defaults(func=cmd_network_access)
+
+    p_bootstrap = aura_sub.add_parser(
+        "bootstrap",
+        help="Fetch CMCAppController bootstrap data — object home URLs accessible in the community UI",
+    )
+    _add_common_args(p_bootstrap)
+    p_bootstrap.set_defaults(func=cmd_bootstrap)
+
+    p_views = aura_sub.add_parser(
+        "views",
+        help="Enumerate accessible UI list views (ListViewPickerDataProvider + ListViewDataManager)",
+    )
+    _add_common_args(p_views)
+    p_views.set_defaults(func=cmd_list_views)
 
     # -- rest ----------------------------------------------------------------
     p_rest = surfaces.add_parser("rest", help="REST surface operations")

@@ -36,7 +36,10 @@ If this file and [DEVELOPMENT.md](DEVELOPMENT.md) ever diverge on architecture o
 - Tooling API: [src/sfmap/core/modules/tooling.py](src/sfmap/core/modules/tooling.py)
 - Static resources: [src/sfmap/core/modules/staticresource.py](src/sfmap/core/modules/staticresource.py)
 - Cross-surface exposure: [src/sfmap/core/modules/exposure.py](src/sfmap/core/modules/exposure.py)
+- Auto-context extraction: [src/sfmap/core/utils/autocontext.py](src/sfmap/core/utils/autocontext.py)
 - HTML report generator: [src/sfmap/core/modules/reporter.py](src/sfmap/core/modules/reporter.py)
+- Community bootstrap data: [src/sfmap/core/modules/bootstrap.py](src/sfmap/core/modules/bootstrap.py)
+- UI list view enumeration: [src/sfmap/core/modules/listviews.py](src/sfmap/core/modules/listviews.py)
 - Bundled wordlists: [src/sfmap/data/](src/sfmap/data/)
 
 ## Architecture and Design Principles
@@ -74,6 +77,12 @@ Surfaces: `aura`, `rest`, `surface`, `files`.
 `rest` flat commands: `static`, `apexrest`, `soql`, `tooling`, `chatter`.
 
 `report`: reads an existing output directory and generates a self-contained HTML file (`report.html`). No credentials required.
+
+`aura bootstrap`: `CMCAppController/ACTION$getAppBootstrapData` — returns object home URLs accessible in the community UI.
+
+`aura views`: two-pass bulk sweep — `ListViewPickerDataProviderController/getInitialListViews` then `ListViewDataManagerController/getItems` — returns directly browsable `/s/recordlist/<Object>/Default` URLs.
+
+`ctx.json` auto-extraction: if ctx.json is absent and -C is not given, sfmap fetches the target page and extracts the Aura context (fwuid, app, markup) automatically, then saves it to ctx.json for future runs.
 
 ## Python Rules
 

@@ -459,6 +459,31 @@ def _section_apex(output_dir: str) -> str:
     return "\n".join(out)
 
 
+def _section_listviews(output_dir: str) -> str:
+    path = os.path.join(output_dir, "listviews.json")
+    if not os.path.isfile(path):
+        return ""
+    data = _load_json(path)
+    if not data or not isinstance(data, dict):
+        return ""
+
+    urls = data.get("accessible_urls", [])
+    if not urls:
+        return ""
+
+    out = ['<section id="listviews">',
+           '<h2>UI List Views — Directly Browsable in Community</h2>',
+           f'<p>{len(urls)} object list view(s) accessible by opening these URLs in a browser:</p>',
+           '<table><thead><tr><th>URL</th><th>Object</th></tr></thead><tbody>']
+
+    for url in urls:
+        obj = url.rstrip("/").rsplit("/", 2)[-2] if "/recordlist/" in url else ""
+        out.append(f'<tr><td><code>{_h(url)}</code></td><td><code>{_h(obj)}</code></td></tr>')
+
+    out.append('</tbody></table></section>')
+    return "\n".join(out)
+
+
 def _section_guest_vs_auth(output_dir: str) -> str:
     """
     Compare unauthenticated vs authenticated GraphQL access.
@@ -538,6 +563,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
 
     sections = [
         ("guest-auth-diff", "Access Comparison — Unauthenticated vs Authenticated", _section_guest_vs_auth(output_dir)),
+        ("listviews", "UI List Views", _section_listviews(output_dir)),
         ("graphql-query", "GraphQL Object Query Sweep", _section_graphql_query(output_dir)),
         ("graphql-dumps", "GraphQL Field-Level Dumps", _section_graphql_dumps(output_dir)),
         ("aura-dump", "Aura Object Dump (getItems)", _section_aura_dump(output_dir)),
