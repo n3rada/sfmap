@@ -1,0 +1,115 @@
+# Common Salesforce Experience Cloud Flow API names
+# Authentication / password
+ForgotPassword
+ChangePassword
+ResetPassword
+Change_Password
+Reset_Password
+Forgot_Password
+ForgotPwd
+SiteForgotPassword
+SiteChangePassword
+SiteRegisterConfirm
+SiteLogin
+SiteLogout
+
+# Registration
+Site_Registration
+Community_Registration
+Self_Registration
+Register
+UserRegistration
+SelfRegister
+SiteRegister
+NewUser
+CreateAccount
+AccountRegistration
+
+# Contact / Lead capture
+ContactUs
+Contact_Us
+LeadCapture
+Lead_Capture
+Subscribe
+Unsubscribe
+Newsletter
+SignUp
+Sign_Up
+GetInTouch
+RequestInfo
+RequestInformation
+RequestDemo
+BookDemo
+
+# Support / Case
+CreateCase
+New_Case
+CaseCreation
+Case_Creation
+SupportRequest
+Support_Request
+SubmitRequest
+SubmitTicket
+OpenCase
+NewTicket
+ReportIssue
+
+# Profile
+UpdateProfile
+EditProfile
+ProfileUpdate
+ChangeEmail
+UpdateEmail
+UpdateContactInfo
+VerifyEmail
+
+# Document / Download request
+DownloadRequest
+RequestDownload
+DocumentRequest
+FileRequest
+
+# Appointment / scheduling
+ScheduleAppointment
+BookAppointment
+RequestAppointment
+Schedule
+
+# Commerce / order
+Checkout
+PlaceOrder
+OrderConfirmation
+CartCheckout
+RequestQuote
+GetQuote
+
+# Knowledge / search
+KnowledgeSearch
+ArticleSearch
+SearchKnowledge
+
+# Approval / consent
+ConsentFlow
+Consent
+ApprovalRequest
+GDPR
+DataRequest
+DataDeletion
+RightToBeForgotten
+
+# Onboarding
+Onboarding
+Welcome
+GettingStarted
+Setup
+
+# Miscellaneous common names
+Main
+Default
+Home
+Portal
+Community
+Site
+Flow
+AutoLaunch
+AutoLaunched

@@ -244,6 +244,31 @@ Output: `relatedlists_{RECORD_ID}.json` in the output directory.
 
 ---
 
+### `aura flow-fuzz [-w wordlist]`
+
+Wordlist-fuzz Salesforce Flow API names via `InterviewController/ACTION$getFlowUIMetadata`. A successful response reveals the flow's screen and variable definitions — registration flows, password-reset flows, and case-creation flows are high-value targets. Flows that exist but restrict access return a distinct error and are still reported.
+
+```bash
+sfmap target.my.site.com aura flow-fuzz
+sfmap target.my.site.com aura flow-fuzz -w ./custom_flows.txt
+```
+
+Output: `flow_hits.json`.
+
+---
+
+### `aura network-access`
+
+Enumerate Experience Cloud network configuration: `Network`, `NetworkMemberGroup`, `NetworkSelfRegistration`. The `Network` record exposes the community name, URL prefix, and — when accessible — the guest profile ID (the profile controlling all unauthenticated access). `NetworkMemberGroup` shows which profiles can join the community.
+
+```bash
+sfmap target.my.site.com aura network-access
+```
+
+Output: `network_config.json`.
+
+---
+
 ### `aura idor-probe`
 
 Test whether `getRecord` (Aura) returns actual field data for authenticated records when queried as an unauthenticated guest. Collects record IDs from the authenticated output directory, subtracts IDs already known to be guest-accessible, then probes the remainder against a guest session.
@@ -325,6 +350,36 @@ sfmap target.my.site.com rest graphql-query
 ```
 
 Output: `graphql/graphql_{ObjectName}.json` per object with data.
+
+---
+
+### `rest graphql-dump OBJECT --fields FIELD [...]`
+
+Dump all records for a specific object via GraphQL `uiapi`. Fields use dot notation — `Name` becomes `Name { value }`, `Profile.Name` becomes `Profile { Name { value } }`. Paginates automatically.
+
+```bash
+sfmap target.my.site.com rest graphql-dump StaticResource --fields Name ContentType
+sfmap target.my.site.com rest graphql-dump Knowledge__kav --fields Title Summary PublishStatus UrlName
+sfmap target.my.site.com rest graphql-dump User --fields Name Email Profile.Name
+```
+
+Output: `graphql_dump_{ObjectName}.json`.
+
+---
+
+### `rest graphql-autodump [OBJECT ...]`
+
+Automatically discover all GraphQL-accessible objects, resolve their scalar fields via `getObjectInfo`, and dump every record. Without arguments, runs a full sweep: enumerate all visible objects, filter to those with accessible records, then dump each with all scalar fields.
+
+```bash
+# Full sweep — enumerate, discover fields, dump everything
+sfmap target.my.site.com rest graphql-autodump
+
+# Target specific objects
+sfmap target.my.site.com rest graphql-autodump User Contact Account
+```
+
+Output: `graphql_dump_{ObjectName}.json` per object with records.
 
 ---
 
@@ -448,6 +503,8 @@ aura_{host}_{path}/
 ├── apexrest_hits.json         # rest apexrest-fuzz results
 ├── staticresource_summary.json  # rest static-resources results
 ├── staticresource_*.bin       # downloaded static resource files
+├── network_config.json        # aura network-access results
+├── flow_hits.json             # aura flow-fuzz results
 ├── objectinfo_{Object}.json   # aura object-info per object
 ├── {Object}__page{N}.json     # aura dump / dump-all pages
 ├── chatter/
@@ -455,7 +512,8 @@ aura_{host}_{path}/
 │   └── rest_*.json
 ├── graphql/
 │   ├── graphql_schema.json
-│   └── graphql_{Object}.json
+│   ├── graphql_{Object}.json
+│   └── graphql_dump_{Object}.json
 ├── guest/
 │   └── {Object}__page{N}.json
 ├── soql/

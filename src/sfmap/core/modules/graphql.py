@@ -258,6 +258,71 @@ def dump_object(
     return all_nodes
 
 
+_SCALAR_TYPES = {
+    "String", "Boolean", "Integer", "Double", "Date", "DateTime",
+    "Email", "Phone", "Url", "TextArea", "LongTextArea", "Picklist",
+    "Currency", "Percent", "AutoNumber",
+}
+
+
+def autodump(
+    client: AuraClient,
+    output_dir: str,
+    object_names: list[str] | None = None,
+    max_fields: int = 30,
+) -> dict[str, int]:
+    """
+    For each object (auto-detected via GraphQL query sweep if none given),
+    discover scalar fields via getObjectInfo and run dump_object.
+    Returns {object_name: record_count}.
+    """
+    from . import dump as _dump
+    from . import enum as _enum
+
+    if not object_names:
+        all_objects = _enum.list_objects(client)
+        logger.info(f"GraphQL autodump: scanning {len(all_objects)} object(s) for accessible records")
+        counts = query_objects(client, list(all_objects.keys()), output_dir)
+        object_names = [name for name, count in counts.items() if count > 0]
+
+    if not object_names:
+        logger.info("GraphQL autodump: no objects with accessible records")
+        return {}
+
+    logger.info(f"GraphQL autodump: {len(object_names)} object(s) with data, fetching field metadata")
+
+    results: dict[str, int] = {}
+    for obj_name in object_names:
+        info = _dump.get_object_info(client, obj_name)
+        if not info:
+            logger.debug(f"GraphQL autodump {obj_name}: no object info, skipping")
+            continue
+
+        fields_meta = info.get("fields", {})
+        fields = [
+            name for name, meta in fields_meta.items()
+            if meta.get("dataType") in _SCALAR_TYPES and name != "Id"
+        ][:max_fields]
+
+        if not fields:
+            logger.debug(f"GraphQL autodump {obj_name}: no scalar fields found")
+            continue
+
+        logger.info(f"GraphQL autodump {obj_name}: querying {len(fields)} field(s)")
+        nodes = dump_object(client, obj_name, fields, output_dir)
+        if nodes:
+            results[obj_name] = len(nodes)
+
+    hit_count = len(results)
+    total = sum(results.values())
+    if results:
+        logger.warning(f"GraphQL autodump: {total} record(s) across {hit_count} object(s)")
+    else:
+        logger.info("GraphQL autodump: no records returned")
+
+    return results
+
+
 def _gql_query_payload(object_name: str, first: int = 200, after: str | None = None) -> dict:
     op_name = f"Query{object_name}"
     cursor_arg = f', after: "{after}"' if after else ""

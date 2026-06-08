@@ -14,7 +14,7 @@ from loguru import logger
 from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
-from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, graphql, idor, injection, relatedlist, soql, staticresource, tooling
+from .core.modules import apex, apexrest, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, network, relatedlist, soql, staticresource, tooling
 from .core.utils import common, logbook, storage
 
 
@@ -275,6 +275,15 @@ def cmd_graphql_dump(args: argparse.Namespace) -> int:
     return 1 if nodes else 0
 
 
+def cmd_graphql_autodump(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    objects = getattr(args, "objects", None) or None
+    with AuraClient(session) as client:
+        results = graphql.autodump(client, output_dir, object_names=objects)
+    return 1 if results else 0
+
+
 def cmd_graphql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = args.output or common.default_output_dir(args.url)
@@ -344,6 +353,22 @@ def cmd_related_lists(args: argparse.Namespace) -> int:
             object_api_name=getattr(args, "object", None),
         )
     return 1 if any(v > 0 for v in results.values()) else 0
+
+
+def cmd_flow_fuzz(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        hits = flow.fuzz(client, output_dir, wordlist_path=getattr(args, "wordlist", None))
+    return 1 if hits else 0
+
+
+def cmd_network_access(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = args.output or common.default_output_dir(args.url)
+    with AuraClient(session) as client:
+        results = network.fetch(client, output_dir)
+    return 1 if results else 0
 
 
 def cmd_idor_probe(args: argparse.Namespace) -> int:
@@ -596,6 +621,27 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_rl.set_defaults(func=cmd_related_lists)
 
+    p_flow = aura_sub.add_parser(
+        "flow-fuzz",
+        help="Wordlist-fuzz Flow API names via InterviewController/ACTION$getFlowUIMetadata",
+    )
+    _add_common_args(p_flow)
+    p_flow.add_argument(
+        "-w",
+        "--wordlist",
+        default=None,
+        metavar="FILE",
+        help="Custom wordlist of flow API names (default: built-in)",
+    )
+    p_flow.set_defaults(func=cmd_flow_fuzz)
+
+    p_net = aura_sub.add_parser(
+        "network-access",
+        help="Enumerate Experience Cloud network config (Network, NetworkMemberGroup, self-registration)",
+    )
+    _add_common_args(p_net)
+    p_net.set_defaults(func=cmd_network_access)
+
     p_crud = aura_sub.add_parser(
         "crud-probe",
         help="Probe create/delete access on visible objects (auto-cleans created records)",
@@ -678,6 +724,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fields to retrieve using dot notation (e.g. Name Email Profile.Name). Scalars are wrapped in { value } automatically.",
     )
     p_gql_d.set_defaults(func=cmd_graphql_dump)
+
+    p_gql_auto = rest_sub.add_parser(
+        "graphql-autodump",
+        help=(
+            "Auto-discover accessible GraphQL objects, resolve their scalar fields "
+            "via getObjectInfo, and dump all records. Runs graphql-query + object-info "
+            "then graphql-dump for every object that returned data."
+        ),
+    )
+    _add_common_args(p_gql_auto)
+    p_gql_auto.add_argument(
+        "objects",
+        nargs="*",
+        metavar="OBJECT",
+        help=(
+            "Specific object API names to dump (optional). "
+            "If omitted, all visible objects are scanned first."
+        ),
+    )
+    p_gql_auto.set_defaults(func=cmd_graphql_autodump)
 
     p_gql = rest_sub.add_parser(
         "graphql-introspect",
