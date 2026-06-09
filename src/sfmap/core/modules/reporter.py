@@ -6,6 +6,7 @@ import os
 import re
 from datetime import datetime
 from importlib.resources import files as resource_files
+from pathlib import Path
 
 # Third-party imports
 from loguru import logger
@@ -62,19 +63,17 @@ def _load_js() -> str:
 
 
 def _detect_identities(output_dir: str) -> list[tuple[str, bool]]:
-    current = os.path.abspath(output_dir)
-    current_name = os.path.basename(current)
-    parent = os.path.dirname(current)
-    if not os.path.isdir(parent):
+    current = Path(output_dir).resolve()
+    parent = current.parent
+    if not parent.is_dir():
         return []
     result = []
-    for name in sorted(os.listdir(parent)):
-        d = os.path.join(parent, name)
-        if not os.path.isdir(d):
+    for d in sorted(parent.iterdir()):
+        if not d.is_dir():
             continue
-        is_current = name == current_name
-        if is_current or os.path.isfile(os.path.join(d, "report.html")):
-            result.append((name, is_current))
+        is_current = d.name == current.name
+        if is_current or (d / "report.html").exists():
+            result.append((d.name, is_current))
     return result
 
 
