@@ -50,7 +50,7 @@ def print_objects(client: AuraClient) -> dict[str, str]:
     standard = {k: v for k, v in objects.items() if not k.endswith("__c")}
     custom = {k: v for k, v in objects.items() if k.endswith("__c")}
 
-    logger.success(
+    logger.info(
         f"Found {len(objects)} objects ({len(standard)} standard, {len(custom)} custom)"
     )
 

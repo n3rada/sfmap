@@ -75,7 +75,7 @@ def fuzz(
                 hits.append(hit)
 
                 if sc == 200:
-                    logger.warning(f"ApexREST {method} /{name}: HTTP {sc} (accessible)")
+                    logger.success(f"ApexREST {method} /{name}: HTTP {sc} (accessible)")
                 elif sc in (401, 403):
                     logger.info(f"ApexREST {method} /{name}: HTTP {sc} (auth required)")
                 elif sc == 400:
@@ -94,7 +94,7 @@ def fuzz(
 
         accessible = [h for h in hits if h["status"] == 200]
         if accessible:
-            logger.warning(
+            logger.success(
                 f"ApexREST: {len(accessible)}/{len(hits)} endpoint(s) returned HTTP 200 (no auth required)"
             )
         else:

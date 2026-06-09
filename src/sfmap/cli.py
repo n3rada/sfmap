@@ -115,7 +115,7 @@ def cmd_list_objects(args: argparse.Namespace) -> int:
     with AuraClient(session) as client:
         objects = enum.print_objects(client)
     storage.save_config_data(session.url, objects)
-    logger.success(f"Object list cached → {storage.config_data_path(session.url)}")
+    logger.info(f"Object list cached → {storage.config_data_path(session.url)}")
     return 0
 
 
@@ -293,7 +293,7 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
     with AuraClient(session) as client:
         hits = apex.fuzz(client, args.wordlist, method=args.method)
     if hits:
-        logger.warning(f"{len(hits)} callable descriptor(s) found:")
+        logger.success(f"{len(hits)} callable descriptor(s) found:")
         for h in hits:
             logger.info(f"  {h}")
     else:

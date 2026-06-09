@@ -84,7 +84,7 @@ def fuzz(
         with open(out_path, "wb") as fh:
             fh.write(content)
 
-        logger.warning(f"StaticResource accessible: /resource/{name} ({len(content):,} bytes) → {out_path}")
+        logger.success(f"StaticResource accessible: /resource/{name} ({len(content):,} bytes) → {out_path}")
         hits.append({"name": name, "url": f"{base}/resource/{name}", "size": len(content)})
 
     summary_path = os.path.join(output_dir, "staticresource_summary.json")
@@ -92,7 +92,7 @@ def fuzz(
         fh.write(json.dumps(hits, ensure_ascii=False, indent=2))
 
     if hits:
-        logger.warning(f"StaticResource: {len(hits)} resource(s) downloaded to {output_dir}")
+        logger.success(f"StaticResource: {len(hits)} resource(s) downloaded to {output_dir}")
     else:
         logger.info("StaticResource: no accessible resources found")
 

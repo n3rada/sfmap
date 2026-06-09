@@ -139,7 +139,7 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
     path = os.path.join(graphql_dir, "graphql_schema.json")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(schema, ensure_ascii=False, indent=2))
-    logger.success(f"GraphQL schema saved → {graphql_dir}/")
+    logger.info(f"GraphQL schema saved → {graphql_dir}/")
 
     _summarise(schema)
     return True
@@ -246,7 +246,7 @@ def dump_object(
         after = page_info.get("endCursor")
 
     if all_nodes:
-        logger.warning(f"{object_name}: {len(all_nodes)} record(s) accessible via GraphQL dump")
+        logger.success(f"{object_name}: {len(all_nodes)} record(s) accessible via GraphQL dump")
         os.makedirs(output_dir, exist_ok=True)
         path = os.path.join(output_dir, f"graphql_dump_{object_name}.json")
         with open(path, "w", encoding="utf-8") as fh:
@@ -319,7 +319,7 @@ def autodump(
     hit_count = len(results)
     total = sum(results.values())
     if results:
-        logger.warning(f"GraphQL autodump: {total} record(s) across {hit_count} object(s)")
+        logger.success(f"GraphQL autodump: {total} record(s) across {hit_count} object(s)")
     else:
         logger.info("GraphQL autodump: no records returned")
 
@@ -391,7 +391,7 @@ def query_objects(
             results[obj_name] = total
 
             if total:
-                logger.warning(f"GraphQL {obj_name}: {total} record(s)")
+                logger.success(f"GraphQL {obj_name}: {total} record(s)")
                 path = os.path.join(graphql_dir, f"graphql_{obj_name}.json")
                 with open(path, "w", encoding="utf-8") as fh:
                     fh.write(json.dumps(rv, ensure_ascii=False, indent=2))

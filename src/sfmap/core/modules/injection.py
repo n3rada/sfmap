@@ -109,7 +109,7 @@ def probe_getitems(
                     "baseline_count": baseline_count,
                     "injected_count": injected_count,
                 }
-                logger.warning(
+                logger.success(
                     f"SOQL injection: {object_name} via where clause: "
                     f"baseline={baseline_count} → injected={injected_count} "
                     f"(payload: {payload!r})"
@@ -152,7 +152,7 @@ def probe_apex(
                             "param": param,
                             "payload": payload,
                         }
-                        logger.warning(
+                        logger.success(
                             f"Apex SOQL candidate: {descriptor} "
                             f"param={param!r} payload={payload!r} → SUCCESS"
                         )
@@ -184,9 +184,9 @@ def run(
         all_findings.extend(probe_apex(client, apex_hits))
 
     if all_findings:
-        logger.warning(f"{len(all_findings)} potential injection finding(s) found")
+        logger.success(f"{len(all_findings)} potential injection finding(s) found")
     else:
-        logger.success("No SOQL injection indicators found.")
+        logger.info("No SOQL injection indicators found.")
 
     os.makedirs(output_dir, exist_ok=True)
     path = os.path.join(output_dir, "injection_findings.json")

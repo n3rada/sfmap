@@ -58,7 +58,7 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, str]:
         logger.info("Bootstrap: no object home URLs returned")
         return {}
 
-    logger.warning(f"Bootstrap: {len(home_urls)} object home URL(s) accessible")
+    logger.success(f"Bootstrap: {len(home_urls)} object home URL(s) accessible")
     for obj, url in sorted(home_urls.items()):
         logger.info(f"  {obj}: {url}")
 

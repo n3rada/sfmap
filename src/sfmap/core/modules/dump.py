@@ -278,5 +278,5 @@ def download_file(
     os.makedirs(output_dir, exist_ok=True)
     dest = Path(output_dir) / filename
     dest.write_bytes(resp.content)
-    logger.success(f"Saved {dest} ({len(resp.content):,} bytes)")
+    logger.info(f"Saved {dest} ({len(resp.content):,} bytes)")
     return dest

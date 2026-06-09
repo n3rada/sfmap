@@ -78,7 +78,7 @@ def fuzz(client: AuraClient, wordlist_path: str | Path | None,
         error_msg = _first_error_message(errors)
 
         if state == "SUCCESS":
-            logger.warning(f"Callable descriptor: {descriptor}")
+            logger.success(f"Callable descriptor: {descriptor}")
             hits.append(descriptor)
         elif "ACCESS_DENIED" in error_msg or "access" in error_msg.lower():
             logger.info(f"{descriptor}: exists, access denied")

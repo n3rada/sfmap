@@ -786,5 +786,5 @@ def generate(output_dir: str, target: str | None = None) -> str:
     with open(report_path, "w", encoding="utf-8") as fh:
         fh.write(page)
 
-    logger.success(f"HTML report saved → {report_path}")
+    logger.info(f"HTML report saved → {report_path}")
     return report_path

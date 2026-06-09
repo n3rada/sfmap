@@ -126,7 +126,7 @@ def sweep(client: AuraClient, objects: list[str], output_dir: str) -> list[str]:
             if obj not in seen_objects:
                 seen_objects.add(obj)
                 accessible_urls.append(url)
-                logger.warning(f"List view accessible: {url} ({obj}/{fname})")
+                logger.success(f"List view accessible: {url} ({obj}/{fname})")
 
     if not accessible_urls:
         logger.info("List views: no accessible record lists found")

@@ -101,9 +101,9 @@ Surfaces: `aura`, `rest`, `surface`, `files`.
 ## Logging Conventions
 
 - `logger.debug` — internal state, loop progress, skip reasons (expected control flow).
-- `logger.info` — operational steps, normal findings with no security impact.
-- `logger.warning` — security findings, accessible records, exposed endpoints.
-- `logger.success` — scan complete, no issues found.
+- `logger.info` — operational steps, completion messages, negative results (no finding).
+- `logger.warning` — tool-level anomaly: unexpected response, partial failure, session oddity.
+- `logger.success` — security finding: accessible record, exposed endpoint, IDOR hit, credential leak.
 - `logger.error` — unrecoverable failures that stop the current operation.
 - `logger.exception` — inside `except` blocks; includes traceback automatically.
 

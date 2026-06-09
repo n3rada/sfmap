@@ -68,7 +68,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
             total = data.get("totalSize", 0)
             if total:
                 results[obj_name] = total
-                logger.warning(f"SOQL {obj_name}: {total} record(s) accessible via REST")
+                logger.success(f"SOQL {obj_name}: {total} record(s) accessible via REST")
                 path = os.path.join(output_dir, f"soql_{obj_name}.json")
                 with open(path, "w", encoding="utf-8") as fh:
                     fh.write(json.dumps(data, ensure_ascii=False, indent=2))
@@ -84,7 +84,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
 
     if results:
         total_records = sum(results.values())
-        logger.warning(
+        logger.success(
             f"REST SOQL: {total_records} record(s) across {len(results)} object(s), "
             f"see {output_dir}/soql_*.json"
         )

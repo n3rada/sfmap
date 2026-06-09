@@ -87,7 +87,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
             continue
 
         results[type_name] = len(records)
-        logger.warning(f"Tooling {type_name}: {len(records)} record(s) with source accessible")
+        logger.success(f"Tooling {type_name}: {len(records)} record(s) with source accessible")
 
         path = os.path.join(tooling_dir, f"tooling_{type_name}.json")
         with open(path, "w", encoding="utf-8") as fh:
@@ -95,7 +95,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
         logger.info(f"Saved to {path}")
 
     if results:
-        logger.warning(
+        logger.success(
             f"Tooling API: source code for {sum(results.values())} object(s) "
             f"across {len(results)} type(s), see {tooling_dir}/"
         )

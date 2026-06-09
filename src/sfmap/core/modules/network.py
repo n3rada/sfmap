@@ -70,7 +70,7 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, list]:
     for obj in _OBJECTS:
         records = _get_records(client, obj)
         if records:
-            logger.warning(f"Network {obj}: {len(records)} record(s) accessible")
+            logger.success(f"Network {obj}: {len(records)} record(s) accessible")
             results[obj] = records
         else:
             logger.debug(f"Network {obj}: not accessible or empty")
@@ -93,10 +93,10 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, list]:
             guest_id = (fields.get("GuestProfileId") or {}).get("value")
             name = (fields.get("Name") or {}).get("value") or record_id
             if guest_id:
-                logger.warning(f"Community '{name}' guest profile ID: {guest_id}")
+                logger.success(f"Community '{name}' guest profile ID: {guest_id}")
             self_reg = (fields.get("SelfRegistrationEnabled") or {}).get("value")
             if self_reg:
-                logger.warning(f"Community '{name}': self-registration is ENABLED")
+                logger.success(f"Community '{name}': self-registration is ENABLED")
             allowed_ext = (fields.get("AllowedExtensions") or {}).get("value")
             if allowed_ext:
                 logger.info(f"Community '{name}' allowed file extensions: {allowed_ext}")

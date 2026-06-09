@@ -69,7 +69,7 @@ def check_self_registration(client: AuraClient) -> dict:
             result["url"] = url_actions[0].get("returnValue")
 
         if result["enabled"]:
-            logger.warning(f"Self-registration enabled: {result['url']}")
+            logger.success(f"Self-registration enabled: {result['url']}")
         else:
             logger.info("Self-registration is not enabled")
 
@@ -111,7 +111,7 @@ def check_graphql(client: AuraClient) -> dict:
             result["usable"] = len(errors) == 0
 
         if result["enabled"] and result["usable"]:
-            logger.warning("GraphQL is enabled and usable")
+            logger.success("GraphQL is enabled and usable")
         elif result["enabled"]:
             logger.info("GraphQL endpoint exists but appears restricted")
         else:
@@ -148,7 +148,7 @@ def check_rest_api(client: AuraClient, aura_url: str) -> dict:
             result["accessible_with_session"] = latest.status_code == 200
 
         if result["version_listing_exposed"]:
-            logger.warning("REST /services/data listing is exposed")
+            logger.success("REST /services/data listing is exposed")
         else:
             logger.info("REST /services/data listing is not exposed")
 
@@ -172,7 +172,7 @@ def check_soap_api(client: AuraClient, aura_url: str) -> dict:
         content_type = (resp.headers.get("Content-Type") or "").lower()
         result["exposed"] = resp.status_code in (200, 500) and "xml" in content_type
         if result["exposed"]:
-            logger.warning("SOAP API endpoint appears exposed")
+            logger.success("SOAP API endpoint appears exposed")
         else:
             logger.info("SOAP API endpoint does not appear exposed")
     except Exception as exc:
@@ -222,7 +222,7 @@ def discover_custom_controllers(client: AuraClient, aura_url: str) -> dict[str, 
 
     count = sum(len(v) for v in controllers.values())
     if count:
-        logger.warning(f"Found {count} custom Apex controller descriptor(s)")
+        logger.success(f"Found {count} custom Apex controller descriptor(s)")
     else:
         logger.info("No custom Apex controller descriptors found")
 
@@ -319,7 +319,7 @@ def check_security_headers(client: AuraClient, aura_url: str) -> dict:
 
         if result["weaknesses"]:
             for w in result["weaknesses"]:
-                logger.warning(f"Security header weakness: {w}")
+                logger.success(f"Security header weakness: {w}")
         else:
             logger.info(f"Security headers: no critical weaknesses ({len(result['present'])} header(s) present)")
 
@@ -354,7 +354,7 @@ def check_visualforce(client: AuraClient, aura_url: str) -> dict[str, int]:
             resp = client.get(url)
             sc = resp.status_code
             if sc not in (404, 410):
-                logger.warning(f"Visualforce page accessible: /apex/{name} (HTTP {sc})")
+                logger.success(f"Visualforce page accessible: /apex/{name} (HTTP {sc})")
                 found[name] = sc
             else:
                 logger.debug(f"VF {name}: HTTP {sc}")
@@ -396,7 +396,7 @@ def check_network_config(client: AuraClient) -> dict:
 
             if ("selfregistration" in low or ("self" in low and "reg" in low)) and val:
                 result["self_registration_enabled"] = True
-                logger.warning(f"Network: self-registration enabled (field={field_name})")
+                logger.success(f"Network: self-registration enabled (field={field_name})")
 
             if "allowedextension" in low and val:
                 result["allowed_extensions"] = val
@@ -427,6 +427,6 @@ def run(client: AuraClient, session: Session, output_dir: str | None = None) -> 
     if output_dir:
         path = f"{output_dir}/exposure_summary.json"
         storage.save_json(path, summary)
-        logger.success(f"Saved exposure summary to {path}")
+        logger.info(f"Saved exposure summary to {path}")
 
     return summary

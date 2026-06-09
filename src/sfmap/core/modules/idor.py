@@ -134,7 +134,7 @@ def probe_guest(
                     if rv_keys == ["onLoadErrorMessage"] or not rv_keys:
                         logger.debug(f"Record {record_id}: exists but data blocked (guest denied)")
                         continue
-                    logger.warning(
+                    logger.success(
                         f"IDOR: record {record_id} data accessible as guest "
                         f"(prefix={record_id[:3]}, fields={rv_keys[:5]})"
                     )
@@ -152,7 +152,7 @@ def probe_guest(
         path = os.path.join(output_dir, "idor_findings.json")
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(json.dumps(findings, ensure_ascii=False, indent=2))
-        logger.warning(
+        logger.success(
             f"IDOR: {len(findings)} record(s) accessible as unauthenticated guest, "
             f"see {path}"
         )

@@ -129,7 +129,7 @@ def probe(
         results[rel] = count
 
         if count:
-            logger.warning(f"{rel}: {count} record(s) accessible")
+            logger.success(f"{rel}: {count} record(s) accessible")
             findings[rel] = data
         else:
             logger.debug(f"{rel}: 0 records")
@@ -146,8 +146,8 @@ def probe(
 
     hit_count = sum(1 for v in results.values() if v > 0)
     if hit_count:
-        logger.warning(f"{hit_count}/{len(relationships)} relationship(s) returned data, saved to {out}")
+        logger.success(f"{hit_count}/{len(relationships)} relationship(s) returned data, saved to {out}")
     else:
-        logger.success(f"No accessible child records found across {len(relationships)} relationship(s)")
+        logger.info(f"No accessible child records found across {len(relationships)} relationship(s)")
 
     return results

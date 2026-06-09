@@ -86,7 +86,7 @@ def probe_rest(
                 continue
 
             if resp.status_code == 200:
-                logger.warning(
+                logger.success(
                     f"ContentVersion/{vid} accessible without authentication: GET {url}"
                 )
                 accessible.append(vid)
@@ -126,7 +126,7 @@ def download_all(
         if path:
             downloaded += 1
 
-    logger.success(f"Downloaded {downloaded}/{len(all_ids)} file(s)")
+    logger.info(f"Downloaded {downloaded}/{len(all_ids)} file(s)")
     return downloaded
 
 
@@ -184,7 +184,7 @@ def check_content_distribution(
             with httpx.Client(verify=False, follow_redirects=True, timeout=10) as http:
                 resp = http.get(pub_url)
             if resp.status_code == 200:
-                logger.warning(
+                logger.success(
                     f"ContentDistribution public URL accessible: {pub_url} ({len(resp.content):,} bytes)"
                 )
                 public_hits.append(
@@ -201,7 +201,7 @@ def check_content_distribution(
             logger.exception(f"ContentDistribution URL probe error for {dist_id}")
 
     if public_hits:
-        logger.warning(
+        logger.success(
             f"ContentDistribution: {len(public_hits)} publicly accessible file(s)"
         )
     else:
@@ -235,12 +235,12 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
     critical = probe_rest(aura_url, version_ids)
 
     if critical:
-        logger.warning(
+        logger.success(
             f"{len(critical)} ContentVersion file(s) downloadable without authentication:"
         )
         for vid in critical:
             parsed = urlparse(aura_url)
-            logger.warning(
+            logger.success(
                 f"  GET {parsed.scheme}://{parsed.netloc}"
                 f"/services/data/{REST_API_VERSION}"
                 f"/sobjects/ContentVersion/{vid}/VersionData"

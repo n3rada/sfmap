@@ -88,10 +88,10 @@ def fuzz(client: AuraClient, output_dir: str, wordlist_path: str | None = None) 
             continue
 
         if result.get("_error"):
-            logger.warning(f"Flow exists (restricted): {name} — {result['_error']}")
+            logger.success(f"Flow exists (restricted): {name} — {result['_error']}")
         else:
             screens = result.get("screens") or result.get("nodes") or []
-            logger.warning(f"Flow accessible: {name} ({len(screens)} screen(s) exposed)")
+            logger.success(f"Flow accessible: {name} ({len(screens)} screen(s) exposed)")
 
         hits.append({"flow_api_name": name, "metadata": result})
 
@@ -101,7 +101,7 @@ def fuzz(client: AuraClient, output_dir: str, wordlist_path: str | None = None) 
         fh.write(json.dumps(hits, ensure_ascii=False, indent=2))
 
     if hits:
-        logger.warning(f"Flow fuzz: {len(hits)} flow(s) found, saved to {out}")
+        logger.success(f"Flow fuzz: {len(hits)} flow(s) found, saved to {out}")
     else:
         logger.info("Flow fuzz: no flows found")
 
