@@ -19,17 +19,27 @@ Python 3.12+. Run via `uv run sfmap`. Never install globally.
 
 1. **Imports** — standard library, then third-party, then local. One blank line between groups. Section comment for each: `# Built-in imports`, `# Third-party imports`, `# Local imports`.
 
-2. **Typing** — use `X | Y` and `X | None` union syntax. No `Optional`. No `Any` unless unavoidable.
+2. **Typing** — use `X | Y` and `X | None` union syntax. No `Optional`. No `Any` unless unavoidable. Declare reusable complex types with the `type` statement (PEP 695): `type Headers = dict[str, str]`.
 
-3. **Pathlib** — use `pathlib.Path` for filesystem operations, not `os.path`.
+3. **Pathlib** — use `pathlib.Path` for filesystem operations, not `os.path`. PEP 428.
 
-4. **Error handling** — inside `except` blocks, use `logger.exception(...)` from loguru, never `logger.debug(f"... {exc}")`. Drop the `as exc` binding unless the exception value is needed for something other than logging. `logger.exception` appends the full traceback automatically.
+4. **f-strings** — all string interpolation uses f-strings. Never `.format()` or `%` formatting. PEP 498.
 
-5. **No comments explaining the obvious** — only comment non-obvious invariants, workarounds, or hidden constraints. Never document what the code does; let names do that.
+5. **Walrus operator** — use `:=` to avoid evaluating an expression twice when the result is needed in both the condition and the body. PEP 572.
 
-6. **No backward-compatibility shims** — no unused variables prefixed `_`, no re-exports for dead imports, no version guards.
+6. **`match`/`case`** — prefer structural pattern matching over `if/elif` chains when dispatching on the shape or value of data. PEP 634.
 
-7. **No premature abstractions** — three similar lines is better than a helper that exists for one caller.
+7. **No mutable default arguments** — never use `[]`, `{}`, or other mutable objects as parameter defaults. Use `None` and assign inside the function body. PEP 8.
+
+8. **Comprehensions over `map`/`filter`** — use list/dict/set comprehensions. Generator expressions when the result is only iterated once. Never `map()` or `filter()`.
+
+9. **Error handling** — inside `except` blocks, use `logger.exception(...)` from loguru, never `logger.debug(f"... {exc}")`. Drop the `as exc` binding unless the exception value is stored or re-raised. `logger.exception` appends the full traceback automatically.
+
+10. **No comments explaining the obvious** — only comment non-obvious invariants, workarounds, or hidden constraints. Never document what the code does; let names do that.
+
+11. **No backward-compatibility shims** — no unused variables prefixed `_`, no re-exports for dead imports, no version guards.
+
+12. **No premature abstractions** — three similar lines is better than a helper that exists for one caller.
 
 ## Definition of Done
 
