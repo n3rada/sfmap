@@ -5,9 +5,12 @@ import json
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 # Third-party imports
 from loguru import logger
+
+_ASSETS_DIR = Path(__file__).parent.parent.parent / "report_assets"
 
 
 def _load_json(path: str) -> dict | list | None:
@@ -23,286 +26,78 @@ def _h(text: str) -> str:
     return html.escape(str(text))
 
 
-def _css() -> str:
-    return """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+def _minify_css(css: str) -> str:
+    css = re.sub(r'/\*.*?\*/', '', css, flags=re.DOTALL)
+    css = re.sub(r'[ \t]+', ' ', css)
+    css = re.sub(r'\s*([{};,>~+])\s*', r'\1', css)
+    css = re.sub(r'\s*:\s*', ':', css)
+    css = re.sub(r'\n+', '\n', css)
+    return css.strip()
 
-:root {
-  --white:       #ffffff;
-  --bg:          #f5f7fa;
-  --border:      #e4e8ef;
-  --border-soft: #edf0f5;
-  --text:        #0d1117;
-  --text-2:      #4b5563;
-  --text-3:      #9ca3af;
-  --accent:      #2563eb;
-  --accent-soft: #eff6ff;
-  --code-bg:     #f0f2f5;
-  --radius:      12px;
-  --radius-sm:   7px;
-  --shadow-sm:   0 1px 2px rgba(13,17,23,.04);
-  --shadow:      0 2px 8px rgba(13,17,23,.07), 0 1px 2px rgba(13,17,23,.04);
-  --font:        'Inter', system-ui, -apple-system, sans-serif;
-  --mono:        'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
-}
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+def _minify_js(js: str) -> str:
+    js = re.sub(r'//[^\n]*', '', js)
+    js = re.sub(r'/\*.*?\*/', '', js, flags=re.DOTALL)
+    js = re.sub(r'[ \t]+', ' ', js)
+    js = re.sub(r'\n\s*\n+', '\n', js)
+    return js.strip()
 
-html { scroll-behavior: smooth; }
 
-body {
-  font-family: var(--font);
-  font-size: 13.5px;
-  line-height: 1.65;
-  color: var(--text);
-  background: var(--bg);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+def _load_css() -> str:
+    try:
+        return _minify_css((_ASSETS_DIR / "style.css").read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("Failed to load report CSS asset")
+        return ""
 
-/* ─── Page header ───────────────────────────────────────── */
-.page-header {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-}
-.page-header-inner {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 1.6rem 2.5rem 1.4rem;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-}
-.header-left { display: flex; flex-direction: column; gap: .35rem; }
-.badge-sfmap {
-  display: inline-flex;
-  align-items: center;
-  gap: .35rem;
-  font-size: .65rem;
-  font-weight: 700;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-  color: var(--accent);
-  background: var(--accent-soft);
-  padding: .18em .65em;
-  border-radius: 99px;
-  width: fit-content;
-}
-.header-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -.025em;
-}
-.header-right {
-  display: flex;
-  gap: 2rem;
-  flex-wrap: wrap;
-  padding-top: .15rem;
-}
-.meta-block { display: flex; flex-direction: column; gap: .12rem; }
-.meta-label {
-  font-size: .6rem;
-  font-weight: 600;
-  letter-spacing: .1em;
-  text-transform: uppercase;
-  color: var(--text-3);
-}
-.meta-value {
-  font-size: .8rem;
-  font-weight: 500;
-  color: var(--text-2);
-  font-family: var(--mono);
-}
 
-/* ─── Layout ─────────────────────────────────────────────── */
-.layout {
-  max-width: 1600px;
-  margin: 0 auto;
-  padding: 1.75rem 2.5rem;
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 1.75rem;
-  align-items: start;
-}
+def _load_js() -> str:
+    try:
+        return _minify_js((_ASSETS_DIR / "app.js").read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("Failed to load report JS asset")
+        return ""
 
-/* ─── TOC ────────────────────────────────────────────────── */
-.toc {
-  position: sticky;
-  top: 1.5rem;
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.1rem 1.1rem;
-  box-shadow: var(--shadow-sm);
-}
-.toc-heading {
-  font-size: .6rem;
-  font-weight: 700;
-  letter-spacing: .13em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  display: block;
-  margin-bottom: .65rem;
-  padding-bottom: .55rem;
-  border-bottom: 1px solid var(--border-soft);
-}
-.toc ol { list-style: none; counter-reset: toc; }
-.toc li {
-  counter-increment: toc;
-  display: flex;
-  align-items: baseline;
-  gap: .4rem;
-}
-.toc li::before {
-  content: counter(toc);
-  font-size: .6rem;
-  font-weight: 600;
-  color: var(--text-3);
-  min-width: 14px;
-  text-align: right;
-  flex-shrink: 0;
-}
-.toc a {
-  font-size: .775rem;
-  font-weight: 450;
-  color: var(--text-2);
-  text-decoration: none;
-  display: block;
-  padding: .22rem .35rem;
-  border-radius: var(--radius-sm);
-  line-height: 1.3;
-  transition: background .12s, color .12s;
-  width: 100%;
-}
-.toc a:hover { background: var(--bg); color: var(--text); }
 
-/* ─── Cards ──────────────────────────────────────────────── */
-.card {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.5rem 1.6rem;
-  margin-bottom: 1rem;
-  box-shadow: var(--shadow-sm);
-}
-.card-title {
-  font-size: .875rem;
-  font-weight: 650;
-  color: var(--text);
-  letter-spacing: -.015em;
-  padding-bottom: .8rem;
-  margin-bottom: 1rem;
-  border-bottom: 1px solid var(--border-soft);
-  display: flex;
-  align-items: center;
-  gap: .55rem;
-}
-.card-title::before {
-  content: '';
-  display: inline-block;
-  width: 3px;
-  height: 1em;
-  background: var(--accent);
-  border-radius: 2px;
-  flex-shrink: 0;
-}
-.card h3 {
-  font-size: .775rem;
-  font-weight: 600;
-  color: var(--text);
-  margin: 1.1rem 0 .45rem;
-  letter-spacing: -.01em;
-}
-.card p {
-  font-size: .8rem;
-  color: var(--text-2);
-  margin: .3rem 0;
-  line-height: 1.55;
-}
-.card ul {
-  padding-left: 1.1rem;
-  margin: .4rem 0;
-}
-.card li {
-  font-size: .8rem;
-  color: var(--text-2);
-  margin: .22rem 0;
-  line-height: 1.5;
-}
+def _detect_identities(output_dir: str) -> list[tuple[str, bool]]:
+    current = Path(output_dir)
+    parent = current.parent
+    if not parent.is_dir():
+        return []
+    result = []
+    for d in sorted(parent.iterdir()):
+        if not d.is_dir():
+            continue
+        is_current = d.name == current.name
+        if is_current or (d / "report.html").exists():
+            result.append((d.name, is_current))
+    return result
 
-/* ─── Tables ─────────────────────────────────────────────── */
-.table-wrap { overflow-x: auto; margin: .6rem 0; border-radius: var(--radius-sm); border: 1px solid var(--border); }
-table { width: 100%; border-collapse: collapse; font-size: .775rem; }
-thead tr { background: var(--bg); }
-thead th {
-  text-align: left;
-  padding: .5rem .85rem;
-  font-size: .62rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .09em;
-  color: var(--text-3);
-  border-bottom: 1px solid var(--border);
-  white-space: nowrap;
-}
-tbody td {
-  padding: .5rem .85rem;
-  border-bottom: 1px solid var(--border-soft);
-  color: var(--text-2);
-  vertical-align: top;
-}
-tbody tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: #fafbfd; }
-.num { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-.muted { color: var(--text-3); font-style: italic; font-size: .75rem; }
 
-/* ─── Code ───────────────────────────────────────────────── */
-code {
-  font-family: var(--mono);
-  font-size: .78em;
-  background: var(--code-bg);
-  color: var(--text);
-  padding: .12em .4em;
-  border-radius: 5px;
-  font-weight: 500;
-  word-break: break-all;
-}
-pre {
-  font-family: var(--mono);
-  font-size: .74rem;
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: .9rem 1rem;
-  overflow-x: auto;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: .65rem 0;
-  line-height: 1.6;
-  color: var(--text);
-}
-
-/* ─── Responsive ─────────────────────────────────────────── */
-@media (max-width: 1024px) {
-  .layout { grid-template-columns: 1fr; }
-  .toc { position: static; }
-}
-@media (max-width: 640px) {
-  .page-header-inner { flex-direction: column; gap: 1rem; }
-  .layout { padding: 1rem 1rem; }
-  .page-header-inner { padding: 1.2rem 1rem 1rem; }
-}
-"""
+def _identity_switcher_html(identities: list[tuple[str, bool]]) -> str:
+    if len(identities) <= 1:
+        return ""
+    pills = ""
+    for name, is_current in identities:
+        if is_current:
+            pills += f'<span class="identity-pill active">{_h(name)}</span>'
+        else:
+            pills += f'<a class="identity-pill" href="../{_h(name)}/report.html">{_h(name)}</a>'
+    return (
+        '<div class="identity-switcher">'
+        '<span class="switcher-label">Identity</span>'
+        f'<div class="switcher-pills">{pills}</div>'
+        '</div>'
+    )
 
 
 def _card(section_id: str, title: str, body: str) -> str:
     return (
-        f'<div class="card" id="{_h(section_id)}">'
-        f'<div class="card-title">{_h(title)}</div>'
-        f'{body}'
+        f'<div class="card collapsible" id="{_h(section_id)}">'
+        f'<div class="card-title">{_h(title)}'
+        f'<span class="card-toggle" aria-hidden="true"></span>'
+        f'</div>'
+        f'<div class="card-body">{body}</div>'
         f'</div>'
     )
 
@@ -443,7 +238,7 @@ def _section_graphql_dumps(output_dir: str) -> str:
         obj_name = re.sub(r"^graphql_dump_", "", os.path.basename(path)[:-5])
         data = _load_json(path)
         if isinstance(data, list) and data:
-            dumps.append((obj_name, len(data), data[:3]))
+            dumps.append((obj_name, len(data), data[:5]))
 
     if not dumps:
         return ""
@@ -455,10 +250,10 @@ def _section_graphql_dumps(output_dir: str) -> str:
         if not samples:
             continue
         all_keys = list(samples[0].keys())
-        max_cols = 10
-        headers = [k for k in all_keys[:max_cols]]
+        max_cols = 12
+        headers = list(all_keys[:max_cols])
         if len(all_keys) > max_cols:
-            headers.append(f"+{len(all_keys) - max_cols}")
+            headers.append(f"+{len(all_keys) - max_cols} more")
         rows = []
         for rec in samples:
             row = []
@@ -471,8 +266,8 @@ def _section_graphql_dumps(output_dir: str) -> str:
                 row.append('<span class="muted">&hellip;</span>')
             rows.append(row)
         parts.append(_table(headers, rows))
-        if count > 3:
-            parts.append(f'<p class="muted">{count - 3:,} additional record(s) in file.</p>')
+        if count > 5:
+            parts.append(f'<p class="muted">{count - 5:,} additional record(s) in file.</p>')
 
     return _card("graphql-dumps", "GraphQL: Field-Level Dumps", "\n".join(parts))
 
@@ -562,7 +357,6 @@ def _section_network(output_dir: str) -> str:
     if not data or not isinstance(data, dict):
         return ""
 
-    # data may be {Network: [records]} or a flat record
     if "Network" in data:
         records = data["Network"]
         record = records[0] if records else {}
@@ -709,6 +503,8 @@ def generate(output_dir: str, target: str | None = None) -> str:
         target = os.path.basename(os.path.abspath(output_dir))
 
     date_str = datetime.now().strftime("%Y-%m-%d")
+    identities = _detect_identities(output_dir)
+    switcher_html = _identity_switcher_html(identities)
 
     sections: list[tuple[str, str, str]] = [
         ("guest-auth-diff", "Unauth vs Auth",         _section_guest_vs_auth(output_dir)),
@@ -736,13 +532,16 @@ def generate(output_dir: str, target: str | None = None) -> str:
     )
     cards = "\n".join(body for _, _, body in active)
 
+    css = _load_css()
+    js = _load_js()
+
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>sfmap: {_h(target)}</title>
-<style>{_css()}</style>
+<style>{css}</style>
 </head>
 <body>
 
@@ -752,6 +551,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
       <span class="badge-sfmap">sfmap</span>
       <h1 class="header-title">Security Assessment Report</h1>
     </div>
+    {switcher_html}
     <div class="header-right">
       <div class="meta-block">
         <span class="meta-label">Target</span>
@@ -779,6 +579,20 @@ def generate(output_dir: str, target: str | None = None) -> str:
   </main>
 </div>
 
+<div id="detail-overlay" class="detail-overlay" onclick="closeDetail()"></div>
+<div id="detail-panel" class="detail-panel" role="complementary" aria-label="Record detail">
+  <div class="detail-header">
+    <span>
+      <span class="detail-title" id="detail-title">Record Detail</span>
+      <span class="detail-hint">Click a value to copy</span>
+    </span>
+    <button class="detail-close-btn" onclick="closeDetail()" title="Close (Esc)">Close</button>
+  </div>
+  <div class="detail-body" id="detail-body"></div>
+</div>
+<div id="copy-toast" class="copy-toast">Copied</div>
+
+<script>{js}</script>
 </body>
 </html>"""
 
