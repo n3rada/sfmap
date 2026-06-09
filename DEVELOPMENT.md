@@ -15,6 +15,34 @@ CLI args
 
 Every command handler in `cli.py` follows this pattern exactly: build session, open client, call module, return exit code.
 
+## Source Map
+
+| File | Role |
+|---|---|
+| `src/sfmap/cli.py` | CLI entry point, parser construction, command handler wiring |
+| `src/sfmap/core/client.py` | `AuraClient`, HTTP transport, auth header derivation |
+| `src/sfmap/core/session.py` | `Session`, guest detection |
+| `src/sfmap/core/modules/enum.py` | Aura object enumeration via `getConfigData` |
+| `src/sfmap/core/modules/dump.py` | Aura `getItems` record dump, pagination, file download |
+| `src/sfmap/core/modules/graphql.py` | GraphQL introspection, query sweep, field-level dump |
+| `src/sfmap/core/modules/content.py` | Content file enumeration and download |
+| `src/sfmap/core/modules/flow.py` | Flow API name fuzzing |
+| `src/sfmap/core/modules/network.py` | Network object config inspection |
+| `src/sfmap/core/modules/idor.py` | IDOR probing (auth IDs vs guest access) |
+| `src/sfmap/core/modules/apex.py` | Apex controller descriptor fuzzing |
+| `src/sfmap/core/modules/apexrest.py` | ApexREST endpoint fuzzing |
+| `src/sfmap/core/modules/soql.py` | SOQL queries via REST |
+| `src/sfmap/core/modules/tooling.py` | Tooling API access |
+| `src/sfmap/core/modules/staticresource.py` | Static resource enumeration and download |
+| `src/sfmap/core/modules/exposure.py` | Cross-surface exposure checks |
+| `src/sfmap/core/modules/reporter.py` | HTML report generator |
+| `src/sfmap/core/modules/bootstrap.py` | Community bootstrap data extraction |
+| `src/sfmap/core/modules/listviews.py` | UI list view enumeration |
+| `src/sfmap/core/utils/autocontext.py` | Aura context auto-extraction |
+| `src/sfmap/core/utils/identity.py` | Current user identity resolution |
+| `src/sfmap/data/` | Bundled wordlists (Apex, flow, ApexREST, VF pages, static resources) |
+| `src/sfmap/report_assets/` | CSS and JS for the HTML report, minified at generation time |
+
 ## Session and Auth Model
 
 `Session` (`core/session.py`) holds the four credentials:
@@ -39,11 +67,42 @@ Every command handler in `cli.py` follows this pattern exactly: build session, o
 | `rest_post(url, ...)` | REST API POST with Bearer |
 | `get(url)` | Plain GET with no auth headers (used for content probing) |
 
+## Design Principles
+
+### Single Responsibility
+
+Each module in `core/modules/` owns exactly one capability surface. Transport stays in `AuraClient`. Credential and auth logic stays in `Session` + `AuraClient`. Modules are auth-agnostic.
+
+### Guest mode is automatic
+
+Every command runs unauthenticated automatically when no credentials are found. There is no separate guest command surface or output directory. `AuraClient` derives authenticated/guest from `Session.is_guest`; no module hard-codes `authenticated=False` or replicates this logic.
+
+### Tool scope (SRP)
+
+sfmap downloads and enumerates. Analysis belongs in external tools (trufflehog, Burp, etc.). Secret scanning is not a module responsibility.
+
+## CLI Surface Map
+
+Surfaces: `aura`, `rest`, `surface`, `files`, `report`.
+
+**`aura`** commands: `objects`, `dump`, `record`, `info`, `related`, `idor`, `crud`, `inject`, `apex`, `flow`, `network`, `views`, `bootstrap`.
+
+- `aura bootstrap` — `CMCAppController/ACTION$getAppBootstrapData` — returns object home URLs accessible in the community UI.
+- `aura views` — two-pass bulk sweep: `ListViewPickerDataProviderController/getInitialListViews` then `ListViewDataManagerController/getItems` — returns directly browsable `/s/recordlist/<Object>/Default` URLs.
+
+**`rest`** subgroups with sub-subcommands:
+- `rest graphql` — `dump | query | introspect`
+- `rest content` — `enum | download | distribution`
+
+**`rest`** flat commands: `static`, `apexrest`, `soql`, `tooling`, `chatter`.
+
+**`surface`** — `exposure` — cross-surface check: self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config.
+
+**`report`** — reads an existing output directory and generates a self-contained `report.html`. No credentials required.
+
 ## Module Structure
 
-Each file in `core/modules/` is one capability surface. Modules are stateless functions; they receive a client and return results. They do not hold state between calls.
-
-Modules call `client.aura_post()` or `client.rest_get()` — never `httpx` directly.
+Modules are stateless functions; they receive a client and return results. They do not hold state between calls. Modules call `client.aura_post()` or `client.rest_get()` — never `httpx` directly.
 
 ### Key Modules
 
@@ -55,7 +114,7 @@ Modules call `client.aura_post()` or `client.rest_get()` — never `httpx` direc
 
 **`idor.py`** — Collects IDs from authenticated output directory, subtracts guest-known IDs, probes remainder as guest. Only flags records where `returnValue` contains actual field data, not just `onLoadErrorMessage`.
 
-**`reporter.py`** — `generate(output_dir, target)`. Scans an existing output directory for all known finding file patterns and produces a single self-contained `report.html`. Sections that have no backing data are omitted. No network access, no credentials needed.
+**`reporter.py`** — `generate(output_dir, target)`. Scans an existing output directory for all known finding file patterns and produces a single self-contained `report.html`. CSS and JS live in `src/sfmap/report_assets/` and are minified on embed. Sections that have no backing data are omitted. No network access, no credentials needed.
 
 Guest vs auth diff is derived automatically within a single output directory:
 - Root `graphql_dump_*.json` = unauthenticated autodump artifacts
@@ -86,9 +145,7 @@ p_cmd.set_defaults(func=cmd_handler)
 
 ## Output Conventions
 
-All output goes under a directory derived from the target URL (e.g. `aura_target.my.site.com_s_sfsites_aura/`). Override with `-o`.
-
-There is no separate guest output directory. Authenticated and unauthenticated runs write to the same path. The caller compares runs by re-running with and without credentials.
+All output goes under a directory derived from the target URL (e.g. `salesforce_target.my.site.com_s_sfsites_aura/<identity>/`). Override with `-o`. The `<identity>` subdirectory is `guest` when unauthenticated, or the resolved username when authenticated. Pass `-I <name>` to override.
 
 File naming:
 - Aura dump pages: `{ObjectName}__page{N}.json`
@@ -96,6 +153,19 @@ File naming:
 - GraphQL query hits: `graphql/{ObjectName}.json`
 - Object info: `objectinfo_{ObjectName}.json`
 - Module summaries: `{module}_summary.json` or `{module}_hits.json`
+
+## Logging Conventions
+
+| Level | When to use |
+|---|---|
+| `logger.debug` | Internal state, loop progress, skip reasons — expected control flow |
+| `logger.info` | Operational steps, completion messages, negative results (no finding) |
+| `logger.warning` | Tool-level anomaly: unexpected response, partial failure, session oddity |
+| `logger.success` | Security finding: accessible record, exposed endpoint, IDOR hit, credential leak |
+| `logger.error` | Unrecoverable failures that stop the current operation |
+| `logger.exception` | Inside `except` blocks only — appends full traceback automatically |
+
+The distinction between `warning` and `success` is important: `warning` means something went wrong with the tool; `success` means the tool found something interesting on the target.
 
 ## Error Handling Pattern
 
@@ -127,4 +197,6 @@ message={"actions":[...]}
 
 **REST API:** Requires OAuth Bearer token. Community portal sessions (`sid=` cookie) are rejected at the platform level with `"This session is not valid for use with the REST API"`. Bearer tokens come from internal user sessions on `login.salesforce.com`.
 
-**getObjectInfo vs DetailController:** On this target, `aura://RecordUiController/ACTION$getObjectInfo` works. `DetailController` returns empty. Do not switch them.
+**`getObjectInfo` vs `DetailController`:** On community targets, `aura://RecordUiController/ACTION$getObjectInfo` works. `DetailController` returns empty. Do not switch them.
+
+**Identity resolution order:** REST `/chatter/users/me` (bearer) → Aura `SelectableListDataProviderController/getItems` on User (community scopes records to current user only, Name field returned as HTML) → fallback `"authenticated"`.
