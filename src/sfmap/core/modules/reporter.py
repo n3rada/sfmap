@@ -66,9 +66,9 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .page-header-inner {
-  max-width: 1240px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 1.6rem 2rem 1.4rem;
+  padding: 1.6rem 2.5rem 1.4rem;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -119,12 +119,12 @@ body {
 
 /* ─── Layout ─────────────────────────────────────────────── */
 .layout {
-  max-width: 1240px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 1.75rem 2rem;
+  padding: 1.75rem 2.5rem;
   display: grid;
-  grid-template-columns: 200px 1fr;
-  gap: 1.5rem;
+  grid-template-columns: 220px 1fr;
+  gap: 1.75rem;
   align-items: start;
 }
 
@@ -286,10 +286,14 @@ pre {
 }
 
 /* ─── Responsive ─────────────────────────────────────────── */
-@media (max-width: 820px) {
+@media (max-width: 1024px) {
   .layout { grid-template-columns: 1fr; }
   .toc { position: static; }
+}
+@media (max-width: 640px) {
   .page-header-inner { flex-direction: column; gap: 1rem; }
+  .layout { padding: 1rem 1rem; }
+  .page-header-inner { padding: 1.2rem 1rem 1rem; }
 }
 """
 
@@ -355,7 +359,7 @@ def _section_guest_vs_auth(output_dir: str) -> str:
             [f"<code>{_h(obj)}</code>", f'<span class="num">{guest_objects[obj]:,}</span>', "yes" if obj in auth_set else "no"]
             for obj in sorted(guest_objects, key=lambda x: -guest_objects[x])
         ]
-        parts.append(f'<h3>Accessible Without Authentication &mdash; {len(guest_objects)} object(s)</h3>')
+        parts.append(f'<h3>Accessible Without Authentication ({len(guest_objects)} object(s))</h3>')
         parts.append(_table(["Object", "Records Extracted", "Also Authenticated"], rows))
 
     if auth_only:
@@ -363,7 +367,7 @@ def _section_guest_vs_auth(output_dir: str) -> str:
             [f"<code>{_h(obj)}</code>", f'<span class="num">{auth_objects[obj]:,}</span>']
             for obj in sorted(auth_only, key=lambda x: -auth_objects[x])
         ]
-        parts.append(f'<h3>Authenticated-Only Objects &mdash; {len(auth_only)} additional</h3>')
+        parts.append(f'<h3>Authenticated-Only Objects ({len(auth_only)} additional)</h3>')
         parts.append(_table(["Object", "Total Records"], rows2))
 
     return _card("guest-auth-diff", "Access: Unauthenticated vs Authenticated", "\n".join(parts))
@@ -419,7 +423,7 @@ def _section_graphql_query(output_dir: str) -> str:
 
     parts: list[str] = []
     if has_schema:
-        parts.append('<p>Introspection schema saved &mdash; <code>graphql/graphql_schema.json</code>.</p>')
+        parts.append('<p>Introspection schema saved: <code>graphql/graphql_schema.json</code>.</p>')
     if hits:
         rows = [
             [f"<code>{_h(obj)}</code>", f'<span class="num">{count:,}</span>']
@@ -430,7 +434,7 @@ def _section_graphql_query(output_dir: str) -> str:
     else:
         parts.append('<p class="muted">No objects returned records in the query sweep.</p>')
 
-    return _card("graphql-query", "GraphQL — Object Query Sweep", "\n".join(parts))
+    return _card("graphql-query", "GraphQL: Object Query Sweep", "\n".join(parts))
 
 
 def _section_graphql_dumps(output_dir: str) -> str:
@@ -447,7 +451,7 @@ def _section_graphql_dumps(output_dir: str) -> str:
     parts: list[str] = [f'<p>{len(dumps)} object(s) with full field data extracted.</p>']
 
     for obj_name, count, samples in dumps:
-        parts.append(f'<h3><code>{_h(obj_name)}</code> &mdash; {count:,} record(s)</h3>')
+        parts.append(f'<h3><code>{_h(obj_name)}</code> ({count:,} record(s))</h3>')
         if not samples:
             continue
         all_keys = list(samples[0].keys())
@@ -470,7 +474,7 @@ def _section_graphql_dumps(output_dir: str) -> str:
         if count > 3:
             parts.append(f'<p class="muted">{count - 3:,} additional record(s) in file.</p>')
 
-    return _card("graphql-dumps", "GraphQL — Field-Level Dumps", "\n".join(parts))
+    return _card("graphql-dumps", "GraphQL: Field-Level Dumps", "\n".join(parts))
 
 
 def _section_aura_dump(output_dir: str) -> str:
@@ -488,7 +492,7 @@ def _section_aura_dump(output_dir: str) -> str:
         f'<p>{len(pages)} object(s) with records accessible via Aura <code>getItems</code>.</p>'
         + _table(["Object", "Pages"], rows)
     )
-    return _card("aura-dump", "Aura — getItems Dump", body)
+    return _card("aura-dump", "Aura: getItems Dump", body)
 
 
 def _section_idor(output_dir: str) -> str:
@@ -514,7 +518,7 @@ def _section_idor(output_dir: str) -> str:
         f'<p>{len(findings)} record(s) returned field data when queried without authentication.</p>'
         + _table(["Record ID", "Object", "Fields"], rows)
     )
-    return _card("idor", "IDOR — Unauthenticated getRecord", body)
+    return _card("idor", "IDOR: Unauthenticated getRecord", body)
 
 
 def _section_chatter(output_dir: str) -> str:
@@ -547,7 +551,7 @@ def _section_chatter(output_dir: str) -> str:
 
     if not parts:
         return ""
-    return _card("chatter", "Chatter — REST Endpoint Probe", "\n".join(parts))
+    return _card("chatter", "Chatter: REST Endpoint Probe", "\n".join(parts))
 
 
 def _section_network(output_dir: str) -> str:
@@ -582,7 +586,7 @@ def _section_network(output_dir: str) -> str:
 
     if not rows:
         return ""
-    return _card("network", "Network — Community Configuration", _table(["Field", "Value"], rows))
+    return _card("network", "Network: Community Configuration", _table(["Field", "Value"], rows))
 
 
 def _section_static(output_dir: str) -> str:
@@ -629,7 +633,7 @@ def _section_crud(output_dir: str) -> str:
             rows.append([f"<code>{_h(str(f))}</code>", ""])
 
     body = f'<p>{len(findings)} object(s) with unexpected write access.</p>' + _table(["Object", "Operations"], rows)
-    return _card("crud", "CRUD — Write Access", body)
+    return _card("crud", "CRUD: Write Access", body)
 
 
 def _section_flow(output_dir: str) -> str:
@@ -737,7 +741,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sfmap &mdash; {_h(target)}</title>
+<title>sfmap: {_h(target)}</title>
 <style>{_css()}</style>
 </head>
 <body>
