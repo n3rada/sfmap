@@ -1,119 +1,100 @@
 (function () {
   'use strict';
 
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
+  const escHtml = str => String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
-  /* ── Collapsible cards ──────────────────────────────────── */
+  /* ── Collapsible cards ──────────────────────────────────────── */
   function initCollapse() {
-    document.querySelectorAll('.card.collapsible .card-title').forEach(function (title) {
-      title.addEventListener('click', function () {
+    document.querySelectorAll('.card.collapsible .card-title').forEach(title => {
+      title.addEventListener('click', () => {
         title.closest('.card').classList.toggle('collapsed');
       });
     });
   }
 
-  /* ── Row detail panel ───────────────────────────────────── */
+  /* ── Row detail dialog ──────────────────────────────────────── */
   function initRowDetails() {
-    document.querySelectorAll('table').forEach(function (table) {
-      var headers = Array.from(table.querySelectorAll('thead th')).map(function (th) {
-        return th.textContent.trim();
-      });
-      table.querySelectorAll('tbody tr').forEach(function (row) {
-        row.addEventListener('click', function () {
-          var cells = Array.from(row.querySelectorAll('td')).map(function (td) {
-            return td.textContent.trim();
-          });
+    document.querySelectorAll('table').forEach(table => {
+      const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent.trim());
+      table.querySelectorAll('tbody tr').forEach(row => {
+        row.setAttribute('tabindex', '0');
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', 'View record detail');
+        const open = () => {
+          const cells = [...row.querySelectorAll('td')].map(td => td.textContent.trim());
           openDetail(headers, cells);
+        };
+        row.addEventListener('click', open);
+        row.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
         });
       });
     });
   }
 
   function openDetail(headers, cells) {
-    var title = document.getElementById('detail-title');
-    var body = document.getElementById('detail-body');
+    const dialog = document.getElementById('detail-dialog');
+    const body   = document.getElementById('detail-body');
+    if (!dialog) return;
 
-    title.textContent = 'Record Detail';
+    body.innerHTML = '<div class="detail-grid">'
+      + headers.map((h, i) => {
+          const val     = cells[i] ?? '';
+          const isEmpty = val === '' || val === '…';
+          return '<div class="detail-kv">'
+            + `<span class="detail-key">${escHtml(h)}</span>`
+            + `<span class="detail-val${isEmpty ? ' empty' : ''}" data-raw="${escHtml(val)}">`
+            + (isEmpty ? 'empty' : escHtml(val))
+            + '</span>'
+            + '</div>';
+        }).join('')
+      + '</div>';
 
-    var items = headers.map(function (h, i) {
-      var val = cells[i] !== undefined ? cells[i] : '';
-      var isEmpty = val === '' || val === '…';
-      return '<div class="detail-kv">'
-        + '<span class="detail-key">' + escHtml(h) + '</span>'
-        + '<span class="detail-val' + (isEmpty ? ' empty' : '') + '" data-raw="' + escHtml(val) + '" title="Click to copy">'
-        + (isEmpty ? 'empty' : escHtml(val))
-        + '</span>'
-        + '</div>';
+    body.querySelectorAll('.detail-val:not(.empty)').forEach(el => {
+      el.addEventListener('click', () => copyVal(el.dataset.raw ?? el.textContent));
     });
 
-    body.innerHTML = '<div class="detail-grid">' + items.join('') + '</div>';
-
-    body.querySelectorAll('.detail-val:not(.empty)').forEach(function (el) {
-      el.addEventListener('click', function () {
-        copyVal(el.dataset.raw || el.textContent);
-      });
-    });
-
-    document.getElementById('detail-overlay').classList.add('open');
-    document.getElementById('detail-panel').classList.add('open');
+    dialog.showModal();
   }
 
-  window.closeDetail = function () {
-    document.getElementById('detail-overlay').classList.remove('open');
-    document.getElementById('detail-panel').classList.remove('open');
-  };
-
+  /* ── Copy value ─────────────────────────────────────────────── */
   function copyVal(text) {
-    if (!navigator.clipboard) return;
-    navigator.clipboard.writeText(text).then(function () {
-      var toast = document.getElementById('copy-toast');
+    navigator.clipboard?.writeText(text).then(() => {
+      const toast = document.getElementById('copy-toast');
       if (!toast) return;
+      toast.classList.remove('show');
+      void toast.offsetWidth;
       toast.classList.add('show');
-      setTimeout(function () { toast.classList.remove('show'); }, 1400);
+      setTimeout(() => toast.classList.remove('show'), 1400);
     });
   }
 
-  /* ── TOC active section ──────────────────────────────────── */
+  /* ── TOC active section ─────────────────────────────────────── */
   function initTOC() {
-    var links = Array.from(document.querySelectorAll('.toc a'));
+    const links = [...document.querySelectorAll('.toc a')];
     if (!links.length) return;
 
-    var sections = links.map(function (a) {
-      return document.getElementById(a.getAttribute('href').replace('#', ''));
-    });
+    const sections = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
 
-    var active = null;
+    const obs = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        links.forEach(a => a.classList.remove('active'));
+        const id   = entry.target.id;
+        const link = links.find(a => a.getAttribute('href') === `#${id}`);
+        link?.classList.add('active');
+      }
+    }, { threshold: 0.08, rootMargin: '-60px 0px -55% 0px' });
 
-    var obs = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          var id = entry.target.id;
-          links.forEach(function (a) { a.classList.remove('active'); });
-          var link = links.find(function (a) { return a.getAttribute('href') === '#' + id; });
-          if (link) {
-            link.classList.add('active');
-            active = link;
-          }
-        }
-      });
-    }, { threshold: 0.08, rootMargin: '-80px 0px -55% 0px' });
-
-    sections.filter(Boolean).forEach(function (s) { obs.observe(s); });
+    sections.filter(Boolean).forEach(s => obs.observe(s));
   }
 
-  /* ── Keyboard ────────────────────────────────────────────── */
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') window.closeDetail();
-  });
-
-  /* ── Init ────────────────────────────────────────────────── */
-  document.addEventListener('DOMContentLoaded', function () {
+  /* ── Init ───────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', () => {
     initCollapse();
     initRowDetails();
     initTOC();

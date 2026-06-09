@@ -1,8 +1,6 @@
 # Built-in imports
-import glob
 import html
 import json
-import os
 import re
 from datetime import datetime
 from importlib.resources import files as resource_files
@@ -12,10 +10,9 @@ from pathlib import Path
 from loguru import logger
 
 
-def _load_json(path: str) -> dict | list | None:
+def _load_json(path: Path | str) -> dict | list | None:
     try:
-        with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
+        return json.loads(Path(path).read_text(encoding="utf-8"))
     except Exception:
         logger.exception(f"Failed to read {path}")
         return None
@@ -64,28 +61,25 @@ def _load_js() -> str:
 
 def _detect_identities(output_dir: str) -> list[tuple[str, bool]]:
     current = Path(output_dir).resolve()
-    parent = current.parent
+    parent  = current.parent
     if not parent.is_dir():
         return []
-    result = []
-    for d in sorted(parent.iterdir()):
-        if not d.is_dir():
-            continue
-        is_current = d.name == current.name
-        if is_current or (d / "report.html").exists():
-            result.append((d.name, is_current))
-    return result
+    return [
+        (d.name, d.name == current.name)
+        for d in sorted(parent.iterdir())
+        if d.is_dir() and (d.name == current.name or (d / "report.html").exists())
+    ]
 
 
 def _identity_switcher_html(identities: list[tuple[str, bool]]) -> str:
     if len(identities) <= 1:
         return ""
-    pills = ""
-    for name, is_current in identities:
-        if is_current:
-            pills += f'<span class="identity-pill active">{_h(name)}</span>'
-        else:
-            pills += f'<a class="identity-pill" href="../{_h(name)}/report.html">{_h(name)}</a>'
+    pills = "".join(
+        f'<span class="identity-pill active">{_h(name)}</span>'
+        if is_current else
+        f'<a class="identity-pill" href="../{_h(name)}/report.html">{_h(name)}</a>'
+        for name, is_current in identities
+    )
     return (
         '<div class="identity-switcher">'
         '<span class="switcher-label">Identity</span>'
@@ -100,7 +94,7 @@ def _card(section_id: str, title: str, body: str) -> str:
         f'<div class="card-title">{_h(title)}'
         f'<span class="card-toggle" aria-hidden="true"></span>'
         f'</div>'
-        f'<div class="card-body">{body}</div>'
+        f'<div class="card-body"><div>{body}</div></div>'
         f'</div>'
     )
 
@@ -111,27 +105,32 @@ def _table(headers: list[str], rows: list[list[str]]) -> str:
         "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
         for row in rows
     )
-    return f'<div class="table-wrap"><table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table></div>'
+    return (
+        '<div class="table-wrap">'
+        f'<table><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table>'
+        '</div>'
+    )
 
 
-# ── Section builders ─────────────────────────────────────────────────────────
+# ── Section builders ──────────────────────────────────────────────────────────
 
 def _section_guest_vs_auth(output_dir: str) -> str:
+    base = Path(output_dir)
+
     guest_objects: dict[str, int] = {}
-    for path in sorted(glob.glob(os.path.join(output_dir, "graphql_dump_*.json"))):
-        obj_name = re.sub(r"^graphql_dump_", "", os.path.basename(path)[:-5])
-        data = _load_json(path)
+    for p in sorted(base.glob("graphql_dump_*.json")):
+        obj_name = p.stem.removeprefix("graphql_dump_")
+        data = _load_json(p)
         guest_objects[obj_name] = len(data) if isinstance(data, list) else 0
 
     auth_objects: dict[str, int] = {}
-    graphql_dir = os.path.join(output_dir, "graphql")
-    if os.path.isdir(graphql_dir):
-        for path in sorted(glob.glob(os.path.join(graphql_dir, "graphql_*.json"))):
-            name = os.path.basename(path)
-            if name == "graphql_schema.json":
+    graphql_dir = base / "graphql"
+    if graphql_dir.is_dir():
+        for p in sorted(graphql_dir.glob("graphql_*.json")):
+            if p.name == "graphql_schema.json":
                 continue
-            obj_name = re.sub(r"^graphql_", "", name[:-5])
-            data = _load_json(path)
+            obj_name = p.stem.removeprefix("graphql_")
+            data = _load_json(p)
             if isinstance(data, dict):
                 total = (
                     data.get("data", {})
@@ -145,7 +144,7 @@ def _section_guest_vs_auth(output_dir: str) -> str:
     if not guest_objects and not auth_objects:
         return ""
 
-    auth_set = set(auth_objects)
+    auth_set  = set(auth_objects)
     auth_only = sorted(set(auth_objects) - set(guest_objects))
     parts: list[str] = [
         '<p>Root-level <code>graphql_dump_*</code> artifacts are from the unauthenticated run. '
@@ -172,10 +171,10 @@ def _section_guest_vs_auth(output_dir: str) -> str:
 
 
 def _section_listviews(output_dir: str) -> str:
-    path = os.path.join(output_dir, "listviews.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "listviews.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data or not isinstance(data, dict):
         return ""
     urls = data.get("accessible_urls", [])
@@ -183,8 +182,10 @@ def _section_listviews(output_dir: str) -> str:
         return ""
 
     rows = [
-        [f"<code>{_h(url)}</code>",
-         f"<code>{_h(url.rstrip('/').rsplit('/', 2)[-2])}</code>" if "/recordlist/" in url else ""]
+        [
+            f"<code>{_h(url)}</code>",
+            f"<code>{_h(url.rstrip('/').rsplit('/', 2)[-2])}</code>" if "/recordlist/" in url else "",
+        ]
         for url in urls
     ]
     body = f'<p>{len(urls)} list view(s) directly browsable in the community UI.</p>' + _table(["URL", "Object"], rows)
@@ -192,17 +193,16 @@ def _section_listviews(output_dir: str) -> str:
 
 
 def _section_graphql_query(output_dir: str) -> str:
-    graphql_dir = os.path.join(output_dir, "graphql")
-    if not os.path.isdir(graphql_dir):
+    graphql_dir = Path(output_dir) / "graphql"
+    if not graphql_dir.is_dir():
         return ""
 
     hits: list[tuple[str, int]] = []
-    for path in sorted(glob.glob(os.path.join(graphql_dir, "graphql_*.json"))):
-        name = os.path.basename(path)
-        if name == "graphql_schema.json":
+    for p in sorted(graphql_dir.glob("graphql_*.json")):
+        if p.name == "graphql_schema.json":
             continue
-        obj_name = re.sub(r"^graphql_", "", name[:-5])
-        data = _load_json(path)
+        obj_name = p.stem.removeprefix("graphql_")
+        data = _load_json(p)
         if not isinstance(data, dict):
             continue
         total = (
@@ -215,7 +215,7 @@ def _section_graphql_query(output_dir: str) -> str:
         if total > 0:
             hits.append((obj_name, total))
 
-    has_schema = os.path.isfile(os.path.join(graphql_dir, "graphql_schema.json"))
+    has_schema = (graphql_dir / "graphql_schema.json").is_file()
     if not hits and not has_schema:
         return ""
 
@@ -237,9 +237,9 @@ def _section_graphql_query(output_dir: str) -> str:
 
 def _section_graphql_dumps(output_dir: str) -> str:
     dumps: list[tuple[str, int, list[dict]]] = []
-    for path in sorted(glob.glob(os.path.join(output_dir, "graphql_dump_*.json"))):
-        obj_name = re.sub(r"^graphql_dump_", "", os.path.basename(path)[:-5])
-        data = _load_json(path)
+    for p in sorted(Path(output_dir).glob("graphql_dump_*.json")):
+        obj_name = p.stem.removeprefix("graphql_dump_")
+        data = _load_json(p)
         if isinstance(data, list) and data:
             dumps.append((obj_name, len(data), data[:5]))
 
@@ -254,7 +254,7 @@ def _section_graphql_dumps(output_dir: str) -> str:
             continue
         all_keys = list(samples[0].keys())
         max_cols = 12
-        headers = list(all_keys[:max_cols])
+        headers  = list(all_keys[:max_cols])
         if len(all_keys) > max_cols:
             headers.append(f"+{len(all_keys) - max_cols} more")
         rows = []
@@ -277,9 +277,8 @@ def _section_graphql_dumps(output_dir: str) -> str:
 
 def _section_aura_dump(output_dir: str) -> str:
     pages: dict[str, int] = {}
-    for path in sorted(glob.glob(os.path.join(output_dir, "*__page*.json"))):
-        m = re.match(r"^(.+)__page(\d+)\.json$", os.path.basename(path))
-        if m:
+    for p in sorted(Path(output_dir).glob("*__page*.json")):
+        if m := re.match(r"^(.+)__page\d+\.json$", p.name):
             obj = m.group(1)
             pages[obj] = pages.get(obj, 0) + 1
     if not pages:
@@ -294,10 +293,10 @@ def _section_aura_dump(output_dir: str) -> str:
 
 
 def _section_idor(output_dir: str) -> str:
-    path = os.path.join(output_dir, "idor_findings.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "idor_findings.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data:
         return ""
     findings = data if isinstance(data, list) else data.get("findings", [])
@@ -306,9 +305,9 @@ def _section_idor(output_dir: str) -> str:
 
     rows = []
     for f in findings:
-        rec_id = _h(f.get("record_id", f.get("id", "")))
-        obj = _h(f.get("object_type", f.get("object", f.get("apiName", ""))))
-        fields = f.get("fields", {})
+        rec_id      = _h(f.get("record_id", f.get("id", "")))
+        obj         = _h(f.get("object_type", f.get("object", f.get("apiName", ""))))
+        fields      = f.get("fields", {})
         field_count = len(fields) if isinstance(fields, dict) else 0
         rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", str(field_count)])
 
@@ -320,10 +319,12 @@ def _section_idor(output_dir: str) -> str:
 
 
 def _section_chatter(output_dir: str) -> str:
-    path = os.path.join(output_dir, "chatter_summary.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "chatter" / "chatter_summary.json"
+    if not p.is_file():
+        p = Path(output_dir) / "chatter_summary.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data or not isinstance(data, dict):
         return ""
 
@@ -335,11 +336,8 @@ def _section_chatter(output_dir: str) -> str:
         if raw:
             parts.append('<h3>File Upload Endpoint Response</h3>')
             parts.append(f'<pre>{_h(raw[:3000])}</pre>')
-            ip_match = re.search(
-                r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b', raw
-            )
-            if ip_match:
-                parts.append(f'<p>IP address disclosed in response: <code>{_h(ip_match.group(0))}</code></p>')
+            if m := re.search(r'\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b', raw):
+                parts.append(f'<p>IP address disclosed in response: <code>{_h(m.group(0))}</code></p>')
 
     for key, heading in [("rest_endpoints", "REST Endpoints"), ("aura_objects", "Aura Objects via Chatter")]:
         items = data.get(key, [])
@@ -353,16 +351,16 @@ def _section_chatter(output_dir: str) -> str:
 
 
 def _section_network(output_dir: str) -> str:
-    path = os.path.join(output_dir, "network_config.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "network_config.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data or not isinstance(data, dict):
         return ""
 
     if "Network" in data:
         records = data["Network"]
-        record = records[0] if records else {}
+        record  = records[0] if records else {}
         if isinstance(record, dict) and "fields" in record:
             get = lambda k: (record["fields"].get(k) or {}).get("value")
         else:
@@ -375,22 +373,21 @@ def _section_network(output_dir: str) -> str:
         ("SelfRegistrationEnabled", "Self-Registration"), ("PasswordlessLoginEnabled", "Passwordless Login"),
         ("AllowMembersToFlag", "Allow Flagging"), ("Status", "Status"),
     ]
-    rows = []
-    for key, label in interesting:
-        val = get(key)
-        if val is not None:
-            rows.append([label, f"<code>{_h(str(val))}</code>"])
-
+    rows = [
+        [label, f"<code>{_h(str(val))}</code>"]
+        for key, label in interesting
+        if (val := get(key)) is not None
+    ]
     if not rows:
         return ""
     return _card("network", "Network: Community Configuration", _table(["Field", "Value"], rows))
 
 
 def _section_static(output_dir: str) -> str:
-    path = os.path.join(output_dir, "staticresource_summary.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "staticresource_summary.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data:
         return ""
     resources = data if isinstance(data, list) else data.get("resources", data.get("hits", []))
@@ -400,8 +397,8 @@ def _section_static(output_dir: str) -> str:
     rows = []
     for r in resources:
         if isinstance(r, dict):
-            name = _h(r.get("name", r.get("Name", "")))
-            size = str(r.get("size", r.get("ContentSize", "")))
+            name  = _h(r.get("name", r.get("Name", "")))
+            size  = str(r.get("size", r.get("ContentSize", "")))
             ctype = _h(r.get("content_type", r.get("ContentType", r.get("type", ""))))
         else:
             name, size, ctype = _h(str(r)), "", ""
@@ -412,10 +409,12 @@ def _section_static(output_dir: str) -> str:
 
 
 def _section_crud(output_dir: str) -> str:
-    path = os.path.join(output_dir, "crud_findings.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "crud_findings.json"
+    if not p.is_file():
+        p = Path(output_dir) / "crud_probe.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data:
         return ""
     findings = data if isinstance(data, list) else data.get("findings", [])
@@ -434,40 +433,40 @@ def _section_crud(output_dir: str) -> str:
 
 
 def _section_flow(output_dir: str) -> str:
-    path = os.path.join(output_dir, "flow_hits.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "flow_hits.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data:
         return ""
     hits = data if isinstance(data, list) else data.get("hits", [])
     if not hits:
         return ""
-    lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
+    lis  = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
     body = f'<p>{len(hits)} flow(s) accessible via <code>InterviewController</code>.</p><ul>{lis}</ul>'
     return _card("flow", "Flow API Names", body)
 
 
 def _section_apex(output_dir: str) -> str:
-    path = os.path.join(output_dir, "apexrest_hits.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "apexrest_hits.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data:
         return ""
     hits = data if isinstance(data, list) else data.get("hits", [])
     if not hits:
         return ""
-    lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
+    lis  = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
     body = f'<p>{len(hits)} endpoint(s) at <code>/services/apexrest/</code>.</p><ul>{lis}</ul>'
     return _card("apexrest", "ApexREST Endpoints", body)
 
 
 def _section_exposure(output_dir: str) -> str:
-    path = os.path.join(output_dir, "exposure_summary.json")
-    if not os.path.isfile(path):
+    p = Path(output_dir) / "exposure_summary.json"
+    if not p.is_file():
         return ""
-    data = _load_json(path)
+    data = _load_json(p)
     if not data or not isinstance(data, dict):
         return ""
 
@@ -482,12 +481,13 @@ def _section_exposure(output_dir: str) -> str:
         val = data.get(key)
         if val is None:
             continue
-        if isinstance(val, dict):
-            summary = "; ".join(f"{k}: {v}" for k, v in val.items() if v not in (None, "", [], {}))[:400]
-        elif isinstance(val, list):
-            summary = f"{len(val)} item(s)" if val else "none found"
-        else:
-            summary = str(val)[:400]
+        match val:
+            case dict():
+                summary = "; ".join(f"{k}: {v}" for k, v in val.items() if v not in (None, "", [], {}))[:400]
+            case list():
+                summary = f"{len(val)} item(s)" if val else "none found"
+            case _:
+                summary = str(val)[:400]
         rows.append([label, _h(summary)])
 
     if not rows:
@@ -495,18 +495,19 @@ def _section_exposure(output_dir: str) -> str:
     return _card("exposure", "Surface Exposure Checks", _table(["Check", "Result"], rows))
 
 
-# ── Report generator ─────────────────────────────────────────────────────────
+# ── Report generator ──────────────────────────────────────────────────────────
 
 def generate(output_dir: str, target: str | None = None) -> str:
     """
     Scan output_dir for finding files and write a self-contained HTML report.
     Returns the path to the saved file.
     """
+    base = Path(output_dir)
     if target is None:
-        target = os.path.basename(os.path.abspath(output_dir))
+        target = base.resolve().name
 
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    identities = _detect_identities(output_dir)
+    date_str     = datetime.now().strftime("%Y-%m-%d")
+    identities   = _detect_identities(output_dir)
     switcher_html = _identity_switcher_html(identities)
 
     sections: list[tuple[str, str, str]] = [
@@ -534,15 +535,15 @@ def generate(output_dir: str, target: str | None = None) -> str:
         for sid, label, _ in active
     )
     cards = "\n".join(body for _, _, body in active)
-
-    css = _load_css()
-    js = _load_js()
+    css   = _load_css()
+    js    = _load_js()
 
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="sfmap security assessment report for {_h(target)}">
 <title>sfmap: {_h(target)}</title>
 <style>{css}</style>
 </head>
@@ -552,7 +553,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
   <div class="page-header-inner">
     <div class="header-left">
       <span class="badge-sfmap">sfmap</span>
-      <h1 class="header-title">Security Assessment Report</h1>
+      <span class="header-title">Security Assessment Report</span>
     </div>
     {switcher_html}
     <div class="header-right">
@@ -573,7 +574,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
 </header>
 
 <div class="layout">
-  <nav class="toc">
+  <nav class="toc" aria-label="Sections">
     <span class="toc-heading">Contents</span>
     <ol>{toc_items}</ol>
   </nav>
@@ -582,26 +583,25 @@ def generate(output_dir: str, target: str | None = None) -> str:
   </main>
 </div>
 
-<div id="detail-overlay" class="detail-overlay" onclick="closeDetail()"></div>
-<div id="detail-panel" class="detail-panel" role="complementary" aria-label="Record detail">
+<dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title">
   <div class="detail-header">
-    <span>
+    <div class="detail-header-left">
       <span class="detail-title" id="detail-title">Record Detail</span>
-      <span class="detail-hint">Click a value to copy</span>
-    </span>
-    <button class="detail-close-btn" onclick="closeDetail()" title="Close (Esc)">Close</button>
+      <span class="detail-hint">click a value to copy</span>
+    </div>
+    <form method="dialog">
+      <button class="detail-close-btn">Close</button>
+    </form>
   </div>
   <div class="detail-body" id="detail-body"></div>
-</div>
-<div id="copy-toast" class="copy-toast">Copied</div>
+</dialog>
+<div id="copy-toast" class="copy-toast" role="status" aria-live="polite">Copied</div>
 
 <script>{js}</script>
 </body>
 </html>"""
 
-    report_path = os.path.join(output_dir, "report.html")
-    with open(report_path, "w", encoding="utf-8") as fh:
-        fh.write(page)
-
+    report_path = base / "report.html"
+    report_path.write_text(page, encoding="utf-8")
     logger.info(f"HTML report saved → {report_path}")
-    return report_path
+    return str(report_path)
