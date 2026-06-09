@@ -28,7 +28,7 @@ def default_output_dir(url: str) -> str:
     """Derive a filesystem-safe output directory name from a URL.
 
     Delegates to :func:`sfmap.core.utils.storage.output_dir` so the naming
-    convention (``aura_<host>_<path>``) is defined in one place.
+    convention (``salesforce_<host>_<path>``) is defined in one place.
     """
     # Import here to avoid a circular dependency (storage imports resolve_url from here).
     from .storage import output_dir  # noqa: PLC0415

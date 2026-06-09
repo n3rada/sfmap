@@ -8,14 +8,11 @@ from .common import resolve_url
 
 
 def output_dir(url: str) -> str:
-    """Derive a filesystem-safe output directory name from a URL.
-
-    Always uses the ``aura_`` prefix regardless of scheme.
-    """
+    """Derive a filesystem-safe output directory name from a URL."""
     parsed = urlparse(resolve_url(url))
     safe_host = parsed.netloc.replace(":", "_")
     safe_path = parsed.path.strip("/").replace("/", "_") or "root"
-    return f"aura_{safe_host}_{safe_path}"
+    return f"salesforce_{safe_host}_{safe_path}"
 
 
 def save_json(path: str | Path, data: dict | list) -> None:
