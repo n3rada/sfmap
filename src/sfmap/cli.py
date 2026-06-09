@@ -19,6 +19,16 @@ from .core.utils import autocontext
 from .core.utils import common, logbook, storage
 
 
+def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None) -> str:
+    if args.output:
+        return args.output
+    base = common.default_output_dir(args.url)
+    identity = getattr(args, "identity", None)
+    if not identity:
+        identity = "guest" if (session is None or session.is_guest) else "authenticated"
+    return os.path.join(base, identity)
+
+
 def _resolve_file_arg(value: str | None, default_file: str) -> str | None:
     raw = value or f"@{default_file}"
     if raw.startswith("@"):
@@ -107,7 +117,7 @@ def cmd_list_objects(args: argparse.Namespace) -> int:
 
 def cmd_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     obj_type = getattr(args, "type", "both")
     display = getattr(args, "display", False)
     custom_fields = getattr(args, "custom_fields", False)
@@ -153,7 +163,7 @@ def cmd_record(args: argparse.Namespace) -> int:
 
 def cmd_content_enum(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         critical = content.run(client, session.url, output_dir)
     return 1 if critical else 0
@@ -161,7 +171,7 @@ def cmd_content_enum(args: argparse.Namespace) -> int:
 
 def cmd_exposure(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
 
     with AuraClient(session) as client:
         summary = exposure.run(client, session, output_dir=output_dir)
@@ -189,7 +199,7 @@ def cmd_exposure(args: argparse.Namespace) -> int:
 
 def cmd_download(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    base_dir = args.output or common.default_output_dir(args.url)
+    base_dir = _resolve_output_dir(args, session)
     downloads_dir = os.path.join(base_dir, "downloads")
     path = dump.download_file(AuraClient(session), args.sf_id, session.url, downloads_dir)
     return 0 if path else 1
@@ -197,7 +207,7 @@ def cmd_download(args: argparse.Namespace) -> int:
 
 def cmd_crud_probe(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
         if args.type == "standard":
@@ -212,7 +222,7 @@ def cmd_crud_probe(args: argparse.Namespace) -> int:
 
 def cmd_soql_inject(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     apex_hits: list[str] = getattr(args, "apex_hits", None) or []
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
@@ -222,7 +232,7 @@ def cmd_soql_inject(args: argparse.Namespace) -> int:
 
 def cmd_chatter(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         summary = chatter.run(client, session.url, output_dir)
     findings = bool(summary.get("file_upload") or summary.get("aura_objects") or summary.get("rest_endpoints"))
@@ -231,7 +241,7 @@ def cmd_chatter(args: argparse.Namespace) -> int:
 
 def cmd_graphql_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     obj = getattr(args, "object", None)
     fields = getattr(args, "fields", None) or []
     with AuraClient(session) as client:
@@ -250,7 +260,7 @@ def cmd_graphql_dump(args: argparse.Namespace) -> int:
 
 def cmd_graphql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
         results = graphql.query_objects(client, list(all_objects.keys()), output_dir)
@@ -259,7 +269,7 @@ def cmd_graphql_query(args: argparse.Namespace) -> int:
 
 def cmd_content_download(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    base_dir = args.output or common.default_output_dir(args.url)
+    base_dir = _resolve_output_dir(args, session)
     downloads_dir = os.path.join(base_dir, "downloads")
     with AuraClient(session) as client:
         downloaded = content.download_all(client, session.url, base_dir, downloads_dir)
@@ -268,7 +278,7 @@ def cmd_content_download(args: argparse.Namespace) -> int:
 
 def cmd_graphql_introspect(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         ok = graphql.introspect(client, session.url, output_dir)
     return 0 if ok else 1
@@ -289,7 +299,7 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
 
 def cmd_object_info(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     os.makedirs(output_dir, exist_ok=True)
     with AuraClient(session) as client:
         objects = args.objects or list(enum.list_objects(client).keys())
@@ -308,7 +318,7 @@ def cmd_object_info(args: argparse.Namespace) -> int:
 
 def cmd_related_lists(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         results = relatedlist.probe(
             client,
@@ -321,7 +331,7 @@ def cmd_related_lists(args: argparse.Namespace) -> int:
 
 def cmd_flow_fuzz(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         hits = flow.fuzz(client, output_dir, wordlist_path=getattr(args, "wordlist", None))
     return 1 if hits else 0
@@ -329,7 +339,7 @@ def cmd_flow_fuzz(args: argparse.Namespace) -> int:
 
 def cmd_network_access(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         results = network.fetch(client, output_dir)
     return 1 if results else 0
@@ -337,7 +347,7 @@ def cmd_network_access(args: argparse.Namespace) -> int:
 
 def cmd_idor_probe(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     record_ids = idor.collect_ids_from_directory(output_dir)
     if not record_ids:
         logger.warning("No record IDs found in output directory, run 'aura dump' first")
@@ -349,7 +359,7 @@ def cmd_idor_probe(args: argparse.Namespace) -> int:
 
 def cmd_content_distribution(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         hits = content.check_content_distribution(client, session.url, output_dir)
     return 1 if hits else 0
@@ -357,7 +367,7 @@ def cmd_content_distribution(args: argparse.Namespace) -> int:
 
 def cmd_apexrest_fuzz(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         hits = apexrest.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
     return 1 if hits else 0
@@ -365,7 +375,7 @@ def cmd_apexrest_fuzz(args: argparse.Namespace) -> int:
 
 def cmd_static_resources(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         hits = staticresource.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
     return 1 if hits else 0
@@ -373,7 +383,7 @@ def cmd_static_resources(args: argparse.Namespace) -> int:
 
 def cmd_soql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     soql_dir = os.path.join(output_dir, "soql")
     with AuraClient(session) as client:
         results = soql.run(client, session.url, soql_dir)
@@ -382,7 +392,7 @@ def cmd_soql_query(args: argparse.Namespace) -> int:
 
 def cmd_bootstrap(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         results = bootstrap.fetch(client, output_dir)
     return 1 if results else 0
@@ -390,7 +400,7 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
 
 def cmd_list_views(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
         urls = listviews.sweep(client, list(all_objects.keys()), output_dir)
@@ -398,7 +408,7 @@ def cmd_list_views(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args)
     if not os.path.isdir(output_dir):
         logger.error(f"Output directory not found: {output_dir}")
         return 1
@@ -408,13 +418,23 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_tooling_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = args.output or common.default_output_dir(args.url)
+    output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         results = tooling.run(client, session.url, output_dir)
     return 1 if results else 0
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-I",
+        "--identity",
+        default=None,
+        metavar="LABEL",
+        help=(
+            "Identity label used as output subdirectory (e.g. alice, admin, guest). "
+            "Defaults to 'guest' when unauthenticated, 'authenticated' otherwise."
+        ),
+    )
     parser.add_argument(
         "-T",
         "--token",
@@ -682,7 +702,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_report.add_argument(
         "--output", "-o", metavar="DIR",
-        help="Output directory to read (default: derived from URL)",
+        help="Output directory to read (default: derived from URL + identity)",
+    )
+    p_report.add_argument(
+        "-I", "--identity", default=None, metavar="LABEL",
+        help="Identity label to read (e.g. guest, alice). Defaults to 'guest'.",
     )
     p_report.set_defaults(func=cmd_report)
 
