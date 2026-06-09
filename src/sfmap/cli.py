@@ -15,7 +15,7 @@ from . import __version__
 from .core.client import AuraClient
 from .core.session import Session
 from .core.modules import apex, apexrest, bootstrap, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, listviews, network, relatedlist, reporter, soql, staticresource, tooling
-from .core.utils import autocontext
+from .core.utils import autocontext, identity as identity_mod
 from .core.utils import common, logbook, storage
 
 
@@ -23,10 +23,14 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
     if args.output:
         return args.output
     base = common.default_output_dir(args.url)
-    identity = getattr(args, "identity", None)
-    if not identity:
-        identity = "guest" if (session is None or session.is_guest) else "authenticated"
-    return os.path.join(base, identity)
+    label = getattr(args, "identity", None)
+    if not label:
+        if session is None or session.is_guest:
+            label = "guest"
+        else:
+            with AuraClient(session) as tmp:
+                label = identity_mod.resolve(tmp)
+    return os.path.join(base, label)
 
 
 def _resolve_file_arg(value: str | None, default_file: str) -> str | None:
