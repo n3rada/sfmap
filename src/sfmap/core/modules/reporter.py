@@ -5,12 +5,10 @@ import json
 import os
 import re
 from datetime import datetime
-from pathlib import Path
+from importlib.resources import files as resource_files
 
 # Third-party imports
 from loguru import logger
-
-_ASSETS_DIR = Path(__file__).parent.parent.parent / "report_assets"
 
 
 def _load_json(path: str) -> dict | list | None:
@@ -45,7 +43,9 @@ def _minify_js(js: str) -> str:
 
 def _load_css() -> str:
     try:
-        return _minify_css((_ASSETS_DIR / "style.css").read_text(encoding="utf-8"))
+        return _minify_css(
+            resource_files("sfmap.report_assets").joinpath("style.css").read_text(encoding="utf-8")
+        )
     except Exception:
         logger.exception("Failed to load report CSS asset")
         return ""
@@ -53,24 +53,28 @@ def _load_css() -> str:
 
 def _load_js() -> str:
     try:
-        return _minify_js((_ASSETS_DIR / "app.js").read_text(encoding="utf-8"))
+        return _minify_js(
+            resource_files("sfmap.report_assets").joinpath("app.js").read_text(encoding="utf-8")
+        )
     except Exception:
         logger.exception("Failed to load report JS asset")
         return ""
 
 
 def _detect_identities(output_dir: str) -> list[tuple[str, bool]]:
-    current = Path(output_dir)
-    parent = current.parent
-    if not parent.is_dir():
+    current = os.path.abspath(output_dir)
+    current_name = os.path.basename(current)
+    parent = os.path.dirname(current)
+    if not os.path.isdir(parent):
         return []
     result = []
-    for d in sorted(parent.iterdir()):
-        if not d.is_dir():
+    for name in sorted(os.listdir(parent)):
+        d = os.path.join(parent, name)
+        if not os.path.isdir(d):
             continue
-        is_current = d.name == current.name
-        if is_current or (d / "report.html").exists():
-            result.append((d.name, is_current))
+        is_current = name == current_name
+        if is_current or os.path.isfile(os.path.join(d, "report.html")):
+            result.append((name, is_current))
     return result
 
 

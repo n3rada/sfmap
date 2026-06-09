@@ -19,4 +19,4 @@ repository = "https://github.com/n3rada/sfmap"
 sfmap = "sfmap.cli:main"
 
 [tool.uv_build]
-include = ["src/sfmap/data/*"]
+include = ["src/sfmap/data/*", "src/sfmap/report_assets/*"]
