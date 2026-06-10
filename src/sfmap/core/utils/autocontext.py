@@ -104,9 +104,9 @@ def extract(aura_url: str) -> tuple[dict, str | None]:
     Auto-extract the Aura context dict and optional token from the target site.
 
     Approach:
-    1. GET /s — parse fwuid, app, APPLICATION@markup from the HTML
-    2. GET /  — same
-    3. Dummy POST to the Aura endpoint — extract fwuid from framework error
+    1. GET /s: parse fwuid, app, APPLICATION@markup from the HTML
+    2. GET /: same
+    3. Dummy POST to the Aura endpoint: extract fwuid from framework error
 
     Returns (context_dict, token_str | None).
     token_str is only present when the HTML page contains a visible JWT (authenticated session).

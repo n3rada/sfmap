@@ -606,7 +606,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_bootstrap = aura_sub.add_parser(
         "bootstrap",
-        help="Fetch CMCAppController bootstrap data — object home URLs accessible in the community UI",
+        help="Fetch CMCAppController bootstrap data (object home URLs accessible in the community UI)",
     )
     _add_common_args(p_bootstrap)
     p_bootstrap.set_defaults(func=cmd_bootstrap)

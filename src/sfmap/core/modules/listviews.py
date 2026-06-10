@@ -40,8 +40,8 @@ def sweep(client: AuraClient, objects: list[str], output_dir: str) -> list[str]:
     Enumerate which objects have accessible UI list views in the community.
 
     Two-pass approach:
-    1. getInitialListViews for all objects (batched) — find objects with at least one list view
-    2. getItems via ListViewDataManager on each view — confirm record access and collect the UI URL
+    1. getInitialListViews for all objects (batched): find objects with at least one list view
+    2. getItems via ListViewDataManager on each view: confirm record access and collect the UI URL
 
     Returns a list of browsable community UI URLs (e.g. https://host/s/recordlist/Account/Default).
     """

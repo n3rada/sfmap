@@ -23,7 +23,7 @@ def _safe(label: str) -> str:
 
 
 def _via_rest(client: AuraClient) -> str | None:
-    """GET /services/data/.../chatter/users/me — works when bearer token or REST is enabled."""
+    """GET /services/data/.../chatter/users/me (works when bearer token or REST is enabled)."""
     base = _base_url(client._session.url)
     url = f"{base}/services/data/{REST_API_VERSION}/chatter/users/me"
     try:
@@ -94,8 +94,8 @@ def resolve(client: AuraClient) -> str:
     Resolve the current authenticated session to a filesystem-safe identity label.
 
     Resolution order:
-    1. REST /chatter/users/me (bearer or session cookie — works when REST API is enabled)
-    2. Aura ListViewDataManager/getItems on User — community context returns current user's record
+    1. REST /chatter/users/me (bearer or session cookie, works when REST API is enabled)
+    2. Aura ListViewDataManager/getItems on User (community context returns current user's record)
     3. Fallback: "authenticated"
     """
     label = _via_rest(client)

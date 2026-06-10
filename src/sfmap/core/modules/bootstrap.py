@@ -41,7 +41,7 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, str]:
                 msg = errs[0]["event"]["attributes"]["values"]["message"]
             except (IndexError, KeyError, TypeError):
                 msg = str(errs)
-            logger.debug(f"Bootstrap: state={action.get('state')} — {msg}")
+            logger.debug(f"Bootstrap: state={action.get('state')}, {msg}")
             return {}
 
         rv = action.get("returnValue", {})

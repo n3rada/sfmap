@@ -1,4 +1,4 @@
-# sfmap — Development Guide
+# sfmap: Development Guide
 
 Architecture, design rationale, and extension model. This is the source of truth for structural decisions. [AI.md](AI.md) summarises the rules; this file explains the why.
 
@@ -56,14 +56,14 @@ Every command handler in `cli.py` follows this pattern exactly: build session, o
 
 `Session.is_guest` is `True` when `token == "undefined"` **and** `cookie is None`. This is the single source of truth for unauthenticated state.
 
-`AuraClient` (`core/client.py`) derives `authenticated` from `session.is_guest` when the caller does not override it. Modules never set `authenticated` explicitly — they pass the session and let `AuraClient` decide.
+`AuraClient` (`core/client.py`) derives `authenticated` from `session.is_guest` when the caller does not override it. Modules never set `authenticated` explicitly; they pass the session and let `AuraClient` decide.
 
 ## AuraClient Methods
 
 | Method | Use |
 |---|---|
-| `aura_post(payload)` | Aura framework POST — appends token, context, form encoding |
-| `rest_get(url)` | REST API GET — appends Bearer header if available |
+| `aura_post(payload)` | Aura framework POST, appends token, context, form encoding |
+| `rest_get(url)` | REST API GET, appends Bearer header if available |
 | `rest_post(url, ...)` | REST API POST with Bearer |
 | `get(url)` | Plain GET with no auth headers (used for content probing) |
 
@@ -87,41 +87,41 @@ Surfaces: `aura`, `rest`, `surface`, `files`, `report`.
 
 **`aura`** commands: `objects`, `dump`, `record`, `info`, `related`, `idor`, `crud`, `inject`, `apex`, `flow`, `network`, `views`, `bootstrap`.
 
-- `aura bootstrap` — `CMCAppController/ACTION$getAppBootstrapData` — returns object home URLs accessible in the community UI.
-- `aura views` — two-pass bulk sweep: `ListViewPickerDataProviderController/getInitialListViews` then `ListViewDataManagerController/getItems` — returns directly browsable `/s/recordlist/<Object>/Default` URLs.
+- `aura bootstrap`: `CMCAppController/ACTION$getAppBootstrapData`, returns object home URLs accessible in the community UI.
+- `aura views`: two-pass bulk sweep, `ListViewPickerDataProviderController/getInitialListViews` then `ListViewDataManagerController/getItems`, returns directly browsable `/s/recordlist/<Object>/Default` URLs.
 
 **`rest`** subgroups with sub-subcommands:
-- `rest graphql` — `dump | query | introspect`
-- `rest content` — `enum | download | distribution`
+- `rest graphql`: `dump | query | introspect`
+- `rest content`: `enum | download | distribution`
 
 **`rest`** flat commands: `static`, `apexrest`, `soql`, `tooling`, `chatter`.
 
-**`surface`** — `exposure` — cross-surface check: self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config.
+**`surface`**: `exposure`, cross-surface check covering self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config.
 
-**`report`** — reads an existing output directory and generates a self-contained `report.html`. No credentials required.
+**`report`**: reads an existing output directory and generates a self-contained `report.html`. No credentials required.
 
 ## Module Structure
 
-Modules are stateless functions; they receive a client and return results. They do not hold state between calls. Modules call `client.aura_post()` or `client.rest_get()` — never `httpx` directly.
+Modules are stateless functions; they receive a client and return results. They do not hold state between calls. Modules call `client.aura_post()` or `client.rest_get()`, never `httpx` directly.
 
 ### Key Modules
 
-**`enum.py`** — `list_objects(client)` via `getConfigData`. Returns `{name: prefix}` dict. Raises on Aura exception. Called by most other modules to get the object list.
+**`enum.py`**: `list_objects(client)` via `getConfigData`. Returns `{name: prefix}` dict. Raises on Aura exception. Called by most other modules to get the object list.
 
-**`dump.py`** — `get_items()` (single page), `dump_object()` (all pages), `get_object_info()`, `get_record()`, `download_file()`. The `get_items` function is the workhorse: it calls `getItems` Aura action and returns the `returnValue` dict or None.
+**`dump.py`**: `get_items()` (single page), `dump_object()` (all pages), `get_object_info()`, `get_record()`, `download_file()`. The `get_items` function is the workhorse: it calls `getItems` Aura action and returns the `returnValue` dict or None.
 
-**`graphql.py`** — Three entry points: `introspect()`, `query_objects()` (count sweep), `dump_object()` (field-level dump), `autodump()` (full sweep with auto-discovered fields). WAF note: operation names prefixed `Dump` return `totalCount: 0` silently. Use `Query` prefix.
+**`graphql.py`**: Three entry points: `introspect()`, `query_objects()` (count sweep), `dump_object()` (field-level dump), `autodump()` (full sweep with auto-discovered fields). WAF note: operation names prefixed `Dump` return `totalCount: 0` silently. Use `Query` prefix.
 
-**`idor.py`** — Collects IDs from authenticated output directory, subtracts guest-known IDs, probes remainder as guest. Only flags records where `returnValue` contains actual field data, not just `onLoadErrorMessage`.
+**`idor.py`**: Collects IDs from authenticated output directory, subtracts guest-known IDs, probes remainder as guest. Only flags records where `returnValue` contains actual field data, not just `onLoadErrorMessage`.
 
-**`reporter.py`** — `generate(output_dir, target)`. Scans an existing output directory for all known finding file patterns and produces a single self-contained `report.html`. CSS and JS live in `src/sfmap/report_assets/` and are minified on embed. Sections that have no backing data are omitted. No network access, no credentials needed.
+**`reporter.py`**: `generate(output_dir, target)`. Scans an existing output directory for all known finding file patterns and produces a single self-contained `report.html`. CSS and JS live in `src/sfmap/report_assets/` and are minified on embed. Sections that have no backing data are omitted. No network access, no credentials needed.
 
 Guest vs auth diff is derived automatically within a single output directory:
-- Root `graphql_dump_*.json` = unauthenticated autodump artifacts
-- `graphql/*.json` = authenticated query sweep artifacts
+- Root `graphql_dump_*.json`: unauthenticated autodump artifacts
+- `graphql/*.json`: authenticated query sweep artifacts
 - The diff section shows which objects are accessible without credentials vs only authenticated
 
-**`exposure.py`** — Cross-surface check: self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config. Each check is isolated and returns a result dict with an `error` key on failure.
+**`exposure.py`**: Cross-surface check covering self-reg, REST/SOAP/GraphQL availability, custom controller discovery, security headers, Visualforce enumeration, network config. Each check is isolated and returns a result dict with an `error` key on failure.
 
 ## CLI Extension Model
 
@@ -158,12 +158,12 @@ File naming:
 
 | Level | When to use |
 |---|---|
-| `logger.debug` | Internal state, loop progress, skip reasons — expected control flow |
+| `logger.debug` | Internal state, loop progress, skip reasons (expected control flow) |
 | `logger.info` | Operational steps, completion messages, negative results (no finding) |
 | `logger.warning` | Tool-level anomaly: unexpected response, partial failure, session oddity |
 | `logger.success` | Security finding: accessible record, exposed endpoint, IDOR hit, credential leak |
 | `logger.error` | Unrecoverable failures that stop the current operation |
-| `logger.exception` | Inside `except` blocks only — appends full traceback automatically |
+| `logger.exception` | Inside `except` blocks only, appends full traceback automatically |
 
 The distinction between `warning` and `success` is important: `warning` means something went wrong with the tool; `success` means the tool found something interesting on the target.
 
@@ -193,7 +193,7 @@ message={"actions":[...]}
 &aura.token=eyJ...   (or "undefined" for guest)
 ```
 
-**GraphQL WAF:** Operation names starting with `Dump` are silently filtered — Salesforce returns `totalCount: 0` with `state: SUCCESS`. The fix is to use `Query` as the operation name prefix.
+**GraphQL WAF:** Operation names starting with `Dump` are silently filtered; Salesforce returns `totalCount: 0` with `state: SUCCESS`. The fix is to use `Query` as the operation name prefix.
 
 **REST API:** Requires OAuth Bearer token. Community portal sessions (`sid=` cookie) are rejected at the platform level with `"This session is not valid for use with the REST API"`. Bearer tokens come from internal user sessions on `login.salesforce.com`.
 

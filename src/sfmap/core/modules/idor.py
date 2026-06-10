@@ -30,7 +30,7 @@ _OBJECT_PREFIXES = {
 
 # Only probe these prefixes + anything that looks like a custom object ID.
 # System/infrastructure prefixes (Group, Profile, RecordType, Layout, etc.)
-# are excluded to avoid noise — those are expected to be semi-public.
+# are excluded to avoid noise; those are expected to be semi-public.
 _SENSITIVE_PREFIXES = frozenset({
     "001",  # Account
     "003",  # Contact
@@ -100,8 +100,8 @@ def probe_guest(
 ) -> list[dict]:
     """
     Try getRecord for each ID via an unauthenticated guest session.
-    Findings: records that were returned in SUCCESS state without credentials —
-    this indicates the Aura guest profile has read access to individual records
+    Findings: records that were returned in SUCCESS state without credentials.
+    This indicates the Aura guest profile has read access to individual records
     by ID even when list-view sharing prevents enumeration.
     """
     if not record_ids:

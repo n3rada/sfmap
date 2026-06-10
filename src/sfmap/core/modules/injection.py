@@ -8,7 +8,7 @@ from loguru import logger
 # Local imports
 from ..client import AuraClient
 
-# SOQL injection payloads — ordered from least to most aggressive.
+# SOQL injection payloads, ordered from least to most aggressive.
 # Detection strategy: if the injected query returns more records than the
 # baseline (or a structurally different response), it is injectable.
 SOQL_PAYLOADS: list[str] = [

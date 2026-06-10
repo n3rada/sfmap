@@ -88,7 +88,7 @@ def fuzz(client: AuraClient, output_dir: str, wordlist_path: str | None = None) 
             continue
 
         if result.get("_error"):
-            logger.success(f"Flow exists (restricted): {name} — {result['_error']}")
+            logger.success(f"Flow exists (restricted): {name} ({result['_error']})")
         else:
             screens = result.get("screens") or result.get("nodes") or []
             logger.success(f"Flow accessible: {name} ({len(screens)} screen(s) exposed)")

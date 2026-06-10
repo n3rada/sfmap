@@ -1,4 +1,4 @@
-# sfmap — Claude Code Project Context
+# sfmap: Claude Code Project Context
 
 Read [AI.md](AI.md) first. It is the canonical engineering guide: architecture, design principles, module map, Python rules, and definition of done.
 
@@ -9,10 +9,10 @@ uv run sfmap <URL> <surface> <command> [options]
 ```
 
 Session credential files (gitignored, place in repo root):
-- `ctx.json` — Aura context JSON
-- `token.txt` — Aura CSRF token
-- `cookies.txt` — raw Cookie header
-- `bearer.txt` — OAuth Bearer token (REST API only)
+- `ctx.json`: Aura context JSON
+- `token.txt`: Aura CSRF token
+- `cookies.txt`: raw Cookie header
+- `bearer.txt`: OAuth Bearer token (REST API only)
 
 ## Commit Rules
 
@@ -22,13 +22,13 @@ Session credential files (gitignored, place in repo root):
 
 ## Code Rules
 
-- `logger.exception(...)` inside every `except` block — never `logger.debug(f"... {exc}")`.
+- `logger.exception(...)` inside every `except` block; never `logger.debug(f"... {exc}")`.
 - No backward-compatibility shims. Delete old code, do not wrap it.
 - No comments that explain what the code does. Only comment non-obvious WHY.
 - Modern Python only: `X | Y`, `X | None`, `pathlib`, no `Optional`, no `Any`.
-- Tools do one thing (SRP). sfmap downloads — external tools (trufflehog, etc.) analyze.
+- Tools do one thing (SRP). sfmap downloads; external tools (trufflehog, etc.) analyze.
 
 ## Style
 
-- No em-dashes in prose or log messages. Use commas or rewrite the sentence.
+- No em-dashes or en-dashes anywhere in code, comments, strings, or responses. Use commas, colons, or rewrite the sentence.
 - No trailing summaries at the end of responses ("I have updated...", "Here's what I did...").

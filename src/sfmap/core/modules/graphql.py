@@ -264,7 +264,7 @@ _SCALAR_TYPES = {
     "Currency", "Percent", "AutoNumber",
 }
 
-# Used when getObjectInfo is blocked — covers fields present on nearly all objects
+# Used when getObjectInfo is blocked; covers fields present on nearly all objects
 _FALLBACK_FIELDS = ["Name", "CreatedDate", "LastModifiedDate", "Description", "Status"]
 
 

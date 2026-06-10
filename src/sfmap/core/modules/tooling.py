@@ -56,7 +56,7 @@ def _query_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
 def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
     """
     Query Salesforce Tooling API for Apex source code.
-    Requires a Bearer token — community sessions are blocked.
+    Requires a Bearer token; community sessions are blocked.
     Returns {type_name: record_count}.
     """
     base = _base_url(aura_url)

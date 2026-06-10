@@ -242,7 +242,7 @@ _SECURITY_HEADERS = [
 def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
     """
     Inventory additional REST surfaces: OAuth, CometD, Tooling, Bulk.
-    Just records which endpoints exist (non-404) — access may require OAuth.
+    Just records which endpoints exist (non-404); access may require OAuth.
     """
     base = _base_url(aura_url)
     probes = {

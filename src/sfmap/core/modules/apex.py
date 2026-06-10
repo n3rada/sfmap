@@ -48,7 +48,7 @@ def fuzz(client: AuraClient, wordlist_path: str | Path | None,
     """
     Fuzz ApexController names from wordlist.
     Returns a list of descriptors that did NOT return an ACCESS_DENIED or
-    NO_SUCH_ACTION error — i.e. the controller/method exists and is callable.
+    NO_SUCH_ACTION error, i.e. the controller/method exists and is callable.
     """
     controllers = _load_controllers(wordlist_path)
 

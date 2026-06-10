@@ -137,7 +137,7 @@ def check_content_distribution(
 ) -> list[dict]:
     """
     Enumerate ContentDistribution records and probe each public URL without auth.
-    ContentDistribution exposes files as publicly shareable links — if the link
+    ContentDistribution exposes files as publicly shareable links. If the link
     is active and not expired, anyone with the URL can download the file.
     Returns list of accessible distribution records.
     """
