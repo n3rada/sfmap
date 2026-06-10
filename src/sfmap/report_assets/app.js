@@ -14,5 +14,11 @@
         document.getElementById(target)?.classList.add('active');
       });
     });
+
+    if (typeof DOMPurify !== 'undefined') {
+      document.querySelectorAll('.html-render[data-html]').forEach(el => {
+        el.innerHTML = DOMPurify.sanitize(el.dataset.html);
+      });
+    }
   });
 })();

@@ -59,6 +59,26 @@ def _load_js() -> str:
         return ""
 
 
+def _load_purify() -> str:
+    try:
+        return resource_files("sfmap.report_assets").joinpath("purify.min.js").read_text(encoding="utf-8")
+    except Exception:
+        logger.exception("Failed to load DOMPurify asset")
+        return ""
+
+
+_HTML_TAG_RE = re.compile(r'<[a-zA-Z][^>]*>.*?</[a-zA-Z]+>', re.DOTALL)
+
+
+def _is_html_content(value: str) -> bool:
+    return bool(_HTML_TAG_RE.search(value))
+
+
+def _html_cell(value: str) -> str:
+    escaped = html.escape(value, quote=True)
+    return f'<div class="html-render" data-html="{escaped}"></div>'
+
+
 def _is_identity_dir(path: Path) -> bool:
     return (
         any(path.glob("graphql_dump_*.json"))
@@ -289,7 +309,10 @@ def _section_graphql_dumps(output_dir: str) -> str:
             headers.append(f"+{len(all_keys) - max_cols} more")
         rows = []
         for rec in samples:
-            row = [_h(_flat_val(rec.get(k, ""))) for k in all_keys[:max_cols]]
+            row = []
+            for k in all_keys[:max_cols]:
+                val = _flat_val(rec.get(k, ""))
+                row.append(_html_cell(val) if _is_html_content(val) else _h(val))
             if len(all_keys) > max_cols:
                 row.append('<span class="muted">&hellip;</span>')
             rows.append(row)
@@ -551,18 +574,42 @@ def _section_flow(output_dir: str) -> str:
 
 
 def _section_apex(output_dir: str) -> str:
-    p = Path(output_dir) / "apexrest_hits.json"
-    if not p.is_file():
+    base = Path(output_dir)
+    parts: list[str] = []
+
+    # ApexREST endpoints
+    p_rest = base / "apexrest_hits.json"
+    if p_rest.is_file():
+        data = _load_json(p_rest)
+        hits = (data if isinstance(data, list) else data.get("hits", [])) if data else []
+        if hits:
+            lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
+            parts.append(f'<h3>ApexREST Endpoints ({len(hits)})</h3>')
+            parts.append(f'<p>{len(hits)} endpoint(s) reachable at <code>/services/apexrest/</code>.</p><ul>{lis}</ul>')
+
+    # Apex ACTION controllers (discovered + probed)
+    p_hits = base / "apex_hits.json"
+    if p_hits.is_file():
+        data = _load_json(p_hits)
+        if data and isinstance(data, dict):
+            callable_ones = data.get("callable", [])
+            denied = data.get("exists_denied", [])
+            if callable_ones or denied:
+                parts.append(f'<h3>Apex ACTION Controllers</h3>')
+                if callable_ones:
+                    rows = [[f"<code>{_h(d)}</code>", '<span style="color:#16a34a;font-weight:600">callable</span>']
+                            for d in callable_ones]
+                    parts.append(f'<p>{len(callable_ones)} descriptor(s) returned SUCCESS with empty params:</p>')
+                    parts.append(_table(["Descriptor", "Status"], rows))
+                if denied:
+                    rows2 = [[f"<code>{_h(d)}</code>", '<span class="muted">access denied</span>']
+                             for d in denied]
+                    parts.append(f'<p>{len(denied)} descriptor(s) exist but returned ACCESS_DENIED:</p>')
+                    parts.append(_table(["Descriptor", "Status"], rows2))
+
+    if not parts:
         return ""
-    data = _load_json(p)
-    if not data:
-        return ""
-    hits = data if isinstance(data, list) else data.get("hits", [])
-    if not hits:
-        return ""
-    lis  = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
-    body = f'<p>{len(hits)} endpoint(s) reachable at <code>/services/apexrest/</code>.</p><ul>{lis}</ul>'
-    return _card("apexrest", "ApexREST Endpoints", body)
+    return _card("apexrest", "Apex Endpoints", "\n".join(parts))
 
 
 def _section_exposure(output_dir: str) -> str:
@@ -779,8 +826,9 @@ def generate(output_dir: str, target: str | None = None) -> str:
 
     guest_dir = next((d for d in identity_dirs if d.name == "guest"), None)
     date_str  = datetime.now().strftime("%Y-%m-%d")
-    css = _load_css()
-    js  = _load_js()
+    css    = _load_css()
+    js     = _load_js()
+    purify = _load_purify()
 
     tab_btns:   list[str] = []
     tab_panels: list[str] = []
@@ -836,6 +884,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
 
 {panels_html}
 
+<script>{purify}</script>
 <script>{js}</script>
 </body>
 </html>"""

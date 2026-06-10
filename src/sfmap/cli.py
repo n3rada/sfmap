@@ -22,6 +22,9 @@ from .core.utils import common, logbook, storage
 def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None) -> str:
     if args.output:
         return args.output
+    if not args.url:
+        logger.error("URL is required when --output is not specified")
+        raise SystemExit(1)
     base = common.default_output_dir(args.url)
     label = getattr(args, "identity", None)
     display: str | None = None
@@ -313,6 +316,38 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
     return 0 if not hits else 1
 
 
+def cmd_apex_controllers(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = _resolve_output_dir(args, session)
+    os.makedirs(output_dir, exist_ok=True)
+
+    with AuraClient(session) as client:
+        descriptors = apex.discover(client, session.url, output_dir)
+
+    if not descriptors:
+        logger.info("No Apex ACTION descriptors discovered")
+        return 0
+
+    disc_path = os.path.join(output_dir, "apex_descriptors.json")
+    with open(disc_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(descriptors, ensure_ascii=False, indent=2))
+    logger.info(f"Saved {len(descriptors)} descriptor(s) to {disc_path}")
+
+    with AuraClient(session) as client:
+        results = apex.probe(client, descriptors)
+
+    callable_ones  = [d for d, s in results.items() if s == "callable"]
+    exists_denied  = [d for d, s in results.items() if s == "exists_denied"]
+
+    hits_path = os.path.join(output_dir, "apex_hits.json")
+    with open(hits_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps({"callable": callable_ones, "exists_denied": exists_denied},
+                             ensure_ascii=False, indent=2))
+
+    logger.info(f"Probe complete: {len(callable_ones)} callable, {len(exists_denied)} access-denied")
+    return 1 if callable_ones or exists_denied else 0
+
+
 def cmd_object_info(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = _resolve_output_dir(args, session)
@@ -432,11 +467,14 @@ def cmd_list_views(args: argparse.Namespace) -> int:
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    output_dir = _resolve_output_dir(args)
+    if not args.output:
+        logger.error("--output DIR is required")
+        return 1
+    output_dir = args.output
     if not os.path.isdir(output_dir):
         logger.error(f"Output directory not found: {output_dir}")
         return 1
-    reporter.generate(output_dir, target=args.url)
+    reporter.generate(output_dir, target=Path(output_dir).name)
     return 0
 
 
@@ -618,6 +656,13 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Apex method name to fuzz (default: invoke)")
     p_apex.set_defaults(func=cmd_apex_fuzz)
 
+    p_controllers = aura_sub.add_parser(
+        "controllers",
+        help="Discover Apex ACTION descriptors from JS bundles and local files, then probe each",
+    )
+    _add_common_args(p_controllers)
+    p_controllers.set_defaults(func=cmd_apex_controllers)
+
     p_flow = aura_sub.add_parser("flow", help="Wordlist-fuzz Flow API names via InterviewController")
     _add_common_args(p_flow)
     p_flow.add_argument("-w", "--wordlist", default=None, metavar="FILE",
@@ -732,12 +777,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a self-contained HTML report from an existing output directory",
     )
     p_report.add_argument(
-        "--output", "-o", metavar="DIR",
-        help="Output directory to read (default: derived from URL + identity)",
-    )
-    p_report.add_argument(
-        "-I", "--identity", default=None, metavar="LABEL",
-        help="Identity label to read (e.g. guest, alice). Defaults to 'guest'.",
+        "--output", "-o", metavar="DIR", required=True,
+        help="Output directory to read",
     )
     p_report.set_defaults(func=cmd_report)
 
@@ -760,14 +801,38 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    parser = build_parser()
-    args = parser.parse_args()
+_SURFACES_NO_URL: frozenset[str] = frozenset({"report"})
+_FLAGS_WITH_VALUE: frozenset[str] = frozenset({"--log-level", "-C", "--context"})
 
+
+def main() -> int:
     # Show help if no cli args provided
     if len(sys.argv) <= 1:
-        parser.print_help()
+        build_parser().print_help()
         return 1
+
+    # When a no-URL surface (e.g. "report") appears before any URL argument,
+    # inject a placeholder so argparse can still parse the positional structure.
+    argv = sys.argv[1:]
+    url_patched = False
+    skip_next = False
+    for i, arg in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg.startswith("-"):
+            if arg in _FLAGS_WITH_VALUE:
+                skip_next = True
+            continue
+        if arg in _SURFACES_NO_URL:
+            argv = argv[:i] + ["_"] + argv[i:]
+            url_patched = True
+        break
+
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if url_patched:
+        args.url = None
 
     # Determine log level: --log-level takes precedence, then --debug, then --trace, then default INFO
     if args.log_level:

@@ -113,8 +113,7 @@ body {
   display: flex;
   gap: 0;
   padding: 0 2.5rem;
-  max-width: 1600px;
-  margin: 0 auto;
+  width: 100%;
 }
 .tab-btn {
   background: none;
@@ -139,9 +138,9 @@ body {
 
 /* Main layout */
 .layout {
-  max-width: 1600px;
+  width: 90vw;
   margin: 0 auto;
-  padding: 1.5rem 2.5rem 3rem;
+  padding: 1.5rem 0 3rem;
 }
 
 /* Cards */
@@ -248,6 +247,19 @@ pre {
   line-height: 1.6;
   color: var(--text);
 }
+
+/* HTML field preview */
+.html-render {
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: .78rem;
+  line-height: 1.55;
+  color: var(--text-2);
+  min-width: 320px;
+}
+.html-render p { margin: 0 0 .4em; }
+.html-render a { color: var(--accent); }
+.html-render b, .html-render strong { color: var(--text); }
 
 /* Responsive */
 @media (max-width: 640px) {
