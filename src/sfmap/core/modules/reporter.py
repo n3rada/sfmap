@@ -79,6 +79,10 @@ def _html_cell(value: str) -> str:
     return f'<div class="html-render" data-html="{escaped}"></div>'
 
 
+def _clean_target(raw: str) -> str:
+    return re.sub(r"_s(?:_sfsites)?(?:_aura)?$", "", raw.removeprefix("salesforce_"))
+
+
 def _is_identity_dir(path: Path) -> bool:
     return (
         any(path.glob("graphql_dump_*.json"))
@@ -97,10 +101,14 @@ def _read_display_name(identity_dir: Path) -> str:
     return identity_dir.name
 
 
-def _card(section_id: str, title: str, body: str) -> str:
+def _card(section_id: str, title: str, body: str, severity: str | None = None) -> str:
+    badge = (
+        f'<span class="sev-badge sev-{severity.lower()}">{severity.upper()}</span>'
+        if severity else ""
+    )
     return (
         f'<div class="card" id="{_h(section_id)}">'
-        f'<div class="card-title">{_h(title)}</div>'
+        f'<div class="card-title">{_h(title)}{badge}</div>'
         f'<div class="card-body">{body}</div>'
         f'</div>'
     )
@@ -128,7 +136,7 @@ def _flat_val(v: object) -> str:
 
 # ── Section builders ──────────────────────────────────────────────────────────
 
-def _section_access_objects(output_dir: str, is_guest: bool, guest_dir: str | None = None) -> str:
+def _section_access_objects(output_dir: str, is_guest: bool, display_name: str = "", guest_dir: str | None = None) -> str:
     base = Path(output_dir)
 
     primary: dict[str, int] = {}
@@ -196,9 +204,9 @@ def _section_access_objects(output_dir: str, is_guest: bool, guest_dir: str | No
         for obj in sorted(primary, key=lambda x: -primary[x]):
             row = [f"<code>{_h(obj)}</code>", f'<span class="num">{primary[obj]:,}</span>']
             if show_guest_col:
-                row.append("yes" if obj in guest_set else '<span class="muted">no</span>')
+                row.append('<span class="guest-flag">GUEST</span>' if obj in guest_set else '<span class="muted">-</span>')
             rows.append(row)
-        label = "Without Authentication" if is_guest else "Authenticated"
+        label = "Without Authentication" if is_guest else f"Authenticated ({display_name})" if display_name else "Authenticated"
         parts.append(f'<h3>Accessible ({label}): {len(primary)} object(s), {total_recs:,} record(s)</h3>')
         parts.append(_table(headers, rows))
 
@@ -211,7 +219,9 @@ def _section_access_objects(output_dir: str, is_guest: bool, guest_dir: str | No
         parts.append(_table(["Object", "Total Records"], rows2))
 
     if is_guest:
-        return _card("access", "Guest User Data Exposure", "\n".join(parts))
+        has_custom = any("__c" in obj for obj in list(primary) + list(sweep))
+        sev = "critical" if has_custom else ("high" if primary else None)
+        return _card("access", "Guest User Data Exposure", "\n".join(parts), severity=sev)
 
     return _card("access", "Authenticated Access", "\n".join(parts))
 
@@ -237,7 +247,7 @@ def _section_listviews(output_dir: str) -> str:
         for url in urls
     ]
     body = f'<p>{len(urls)} object list view(s) directly browsable in the community UI.</p>' + _table(["Object", "URL"], rows)
-    return _card("listviews", "UI List Views", body)
+    return _card("listviews", "UI List Views", body, severity="medium")
 
 
 def _section_graphql_query(output_dir: str) -> str:
@@ -378,7 +388,7 @@ def _section_idor(output_dir: str) -> str:
         f'<p>{len(findings)} record ID(s) responded with data when fetched without authentication.</p>'
         + _table(["Record ID", "Object", "Return Value Keys"], rows)
     )
-    return _card("idor", "IDOR: Unauthenticated getRecord", body)
+    return _card("idor", "IDOR: Unauthenticated getRecord", body, severity="critical")
 
 
 def _section_chatter(output_dir: str) -> str:
@@ -423,7 +433,9 @@ def _section_chatter(output_dir: str) -> str:
 
     if not parts:
         return ""
-    return _card("chatter", "Chatter: File Upload & REST Probe", "\n".join(parts))
+    has_ip_leak = any("<h3>IP Address Leak" in p for p in parts)
+    sev = "medium" if has_ip_leak else None
+    return _card("chatter", "Chatter: File Upload & REST Probe", "\n".join(parts), severity=sev)
 
 
 def _section_network(output_dir: str) -> str:
@@ -555,7 +567,7 @@ def _section_crud(output_dir: str) -> str:
         for obj, ops in findings
     ]
     body = f'<p>{len(findings)} object(s) allow write operations with this session.</p>' + _table(["Object", "Allowed Operations"], rows)
-    return _card("crud", "CRUD: Write Access", body)
+    return _card("crud", "CRUD: Write Access", body, severity="high")
 
 
 def _section_flow(output_dir: str) -> str:
@@ -609,7 +621,9 @@ def _section_apex(output_dir: str) -> str:
 
     if not parts:
         return ""
-    return _card("apexrest", "Apex Endpoints", "\n".join(parts))
+    has_callable = any("callable" in p for p in parts)
+    sev = "high" if has_callable else None
+    return _card("apexrest", "Apex Endpoints", "\n".join(parts), severity=sev)
 
 
 def _section_exposure(output_dir: str) -> str:
@@ -712,7 +726,9 @@ def _section_exposure(output_dir: str) -> str:
 
     if not parts:
         return ""
-    return _card("exposure", "Surface Exposure Checks", "\n".join(parts))
+    has_weaknesses = any("Weaknesses:" in p or "weaknesses" in p.lower() for p in parts)
+    sev = "low" if has_weaknesses else None
+    return _card("exposure", "Surface Exposure Checks", "\n".join(parts), severity=sev)
 
 
 def _section_graphql_schema(output_dir: str) -> str:
@@ -780,6 +796,138 @@ def _section_graphql_schema(output_dir: str) -> str:
     return _card("graphql-schema", "GraphQL: Schema Types", body)
 
 
+def _section_summary(output_dir: str, is_guest: bool, display_name: str) -> str:
+    base = Path(output_dir)
+
+    obj_names: set[str] = set()
+    rec_count = 0
+    for p in base.glob("graphql_dump_*.json"):
+        obj_names.add(p.stem.removeprefix("graphql_dump_"))
+        data = _load_json(p)
+        if isinstance(data, list):
+            rec_count += len(data)
+    for p in base.glob("*__page1.json"):
+        if m := re.match(r"^(.+)__page1\.json$", p.name):
+            obj_names.add(m.group(1))
+            data = _load_json(p)
+            rec_count += (data.get("totalCount", 0) or 0) if isinstance(data, dict) else 0
+
+    gql_hits = 0
+    graphql_dir = base / "graphql"
+    if graphql_dir.is_dir():
+        for p in graphql_dir.glob("graphql_*.json"):
+            if p.name == "graphql_schema.json":
+                continue
+            obj_name = p.stem.removeprefix("graphql_")
+            data = _load_json(p)
+            if isinstance(data, dict):
+                total = (
+                    data.get("data", {}).get("uiapi", {}).get("query", {}).get(obj_name, {}).get("totalCount", 0)
+                ) or 0
+                if total > 0:
+                    gql_hits += 1
+
+    idor_count = 0
+    p_idor = base / "idor_findings.json"
+    if p_idor.is_file():
+        data = _load_json(p_idor)
+        if data:
+            findings = data if isinstance(data, list) else data.get("findings", [])
+            idor_count = len(findings)
+
+    crud_objs = 0
+    for candidate in [base / "crud_probe.json", base / "crud_findings.json"]:
+        if candidate.is_file():
+            data = _load_json(candidate)
+            if data and isinstance(data, dict):
+                crud_objs = sum(1 for r in data.values() if isinstance(r, dict) and r.get("create"))
+            elif data and isinstance(data, list):
+                crud_objs = len(data)
+            break
+
+    ip_leak = False
+    for candidate in [base / "chatter" / "chatter_summary.json", base / "chatter_summary.json"]:
+        if candidate.is_file():
+            data = _load_json(candidate)
+            if data and isinstance(data, dict):
+                ip_leak = bool(data.get("file_upload", {}).get("leaked_ips"))
+            break
+
+    apex_callable = 0
+    p_apex = base / "apex_hits.json"
+    if p_apex.is_file():
+        data = _load_json(p_apex)
+        if data and isinstance(data, dict):
+            apex_callable = len(data.get("callable", []))
+
+    listview_count = 0
+    p_lv = base / "listviews.json"
+    if p_lv.is_file():
+        data = _load_json(p_lv)
+        if data and isinstance(data, dict):
+            listview_count = len(data.get("accessible_urls", []))
+
+    metrics: list[tuple[str, str]] = []
+    if obj_names:
+        metrics.append((str(len(obj_names)), "Objects"))
+        metrics.append((f"{rec_count:,}", "Records"))
+    if gql_hits:
+        metrics.append((str(gql_hits), "GraphQL Types"))
+    if idor_count:
+        metrics.append((str(idor_count), "IDOR Records"))
+    if crud_objs:
+        metrics.append((str(crud_objs), "Writable Objects"))
+    if listview_count:
+        metrics.append((str(listview_count), "List Views"))
+    if apex_callable:
+        metrics.append((str(apex_callable), "Callable Apex"))
+
+    key_findings: list[tuple[str, str]] = []
+    if is_guest and obj_names:
+        has_custom = any("__c" in o for o in obj_names)
+        sev = "critical" if has_custom else "high"
+        key_findings.append((sev, f"Unauthenticated read access to {len(obj_names)} object(s), {rec_count:,} record(s)"))
+    if idor_count:
+        key_findings.append(("critical", f"IDOR: {idor_count} record(s) readable without authentication"))
+    if crud_objs:
+        key_findings.append(("high", f"Write access to {crud_objs} object(s)"))
+    if apex_callable:
+        key_findings.append(("high", f"{apex_callable} Apex ACTION descriptor(s) callable with no params"))
+    if ip_leak:
+        key_findings.append(("medium", "Internal IP address(es) leaked via Chatter upload endpoint"))
+    if listview_count:
+        key_findings.append(("medium", f"{listview_count} UI list view(s) directly browsable"))
+
+    parts: list[str] = []
+    if metrics:
+        metric_html = "".join(
+            f'<div class="summary-metric">'
+            f'<div class="summary-metric-value">{val}</div>'
+            f'<div class="summary-metric-label">{label}</div>'
+            f'</div>'
+            for val, label in metrics
+        )
+        parts.append(f'<div class="summary-metrics">{metric_html}</div>')
+
+    if key_findings:
+        sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        key_findings.sort(key=lambda x: sev_order.get(x[0], 9))
+        lis = "".join(
+            f'<li class="summary-finding">'
+            f'<span class="sev-badge sev-{sev}">{sev.upper()}</span>'
+            f'<span>{_h(msg)}</span>'
+            f'</li>'
+            for sev, msg in key_findings
+        )
+        parts.append(f'<h3>Key Findings</h3><ul class="summary-findings">{lis}</ul>')
+
+    if not parts:
+        return ""
+
+    context = "Guest" if is_guest else display_name
+    return _card("summary", f"{context}: Overview", "\n".join(parts))
+
+
 # ── Report generator ──────────────────────────────────────────────────────────
 
 def _build_tab_panel(
@@ -794,20 +942,21 @@ def _build_tab_panel(
     gd = str(guest_dir) if guest_dir and guest_dir != identity_dir else None
 
     sections: list[tuple[str, str]] = [
-        ("access",         _section_access_objects(od, is_guest, gd)),
-        ("listviews",      _section_listviews(od)),
-        ("graphql-query",  _section_graphql_query(od)),
-        ("graphql-schema", _section_graphql_schema(od)),
+        ("summary",        _section_summary(od, is_guest, display_name)),
+        ("access",         _section_access_objects(od, is_guest, display_name, gd)),
+        ("idor",           _section_idor(od)),
+        ("crud",           _section_crud(od)),
+        ("chatter",        _section_chatter(od)),
         ("graphql-dumps",  _section_graphql_dumps(od)),
         ("aura-dump",      _section_aura_dump(od)),
-        ("idor",           _section_idor(od)),
-        ("chatter",        _section_chatter(od)),
-        ("network",        _section_network(od)),
-        ("static",         _section_static(od)),
-        ("crud",           _section_crud(od)),
+        ("listviews",      _section_listviews(od)),
+        ("exposure",       _section_exposure(od)),
+        ("graphql-query",  _section_graphql_query(od)),
+        ("graphql-schema", _section_graphql_schema(od)),
         ("flow",           _section_flow(od)),
         ("apexrest",       _section_apex(od)),
-        ("exposure",       _section_exposure(od)),
+        ("network",        _section_network(od)),
+        ("static",         _section_static(od)),
     ]
     active_sections = [(sid, body) for sid, body in sections if body]
 
@@ -844,7 +993,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
         return ""
 
     if target is None:
-        target = report_dir.name.removeprefix("salesforce_")
+        target = _clean_target(report_dir.name)
 
     guest_dir = next((d for d in identity_dirs if d.name == "guest"), None)
     date_str  = datetime.now().strftime("%Y-%m-%d")

@@ -285,6 +285,83 @@ pre {
 .html-render a { color: var(--accent); }
 .html-render b, .html-render strong { color: var(--text); }
 
+/* Severity badges */
+.sev-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: .18em .6em;
+  border-radius: 99px;
+  margin-left: .5rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.sev-critical { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.sev-high     { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.sev-medium   { background: #fefce8; color: #a16207; border: 1px solid #fde68a; }
+.sev-low      { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+
+/* Guest flag (red alarm inline badge for table cells) */
+.guest-flag {
+  display: inline-flex;
+  align-items: center;
+  font-size: .58rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  padding: .18em .6em;
+  border-radius: 99px;
+  white-space: nowrap;
+}
+
+/* Summary card */
+.summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: .65rem;
+  margin-bottom: 1rem;
+}
+.summary-metric {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: .7rem .9rem;
+  text-align: center;
+}
+.summary-metric-value {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.summary-metric-label {
+  font-size: .6rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  margin-top: .2rem;
+}
+.summary-findings { list-style: none; padding: 0; margin: 0; }
+.summary-finding {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  padding: .4rem 0;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: .78rem;
+  color: var(--text-2);
+}
+.summary-finding:last-child { border-bottom: none; }
+.summary-finding .sev-badge { margin-left: 0; }
+
 /* Responsive */
 @media (max-width: 640px) {
   .page-header-inner { padding: .85rem 1rem; flex-direction: column; align-items: flex-start; gap: .75rem; }

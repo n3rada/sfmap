@@ -474,7 +474,7 @@ def cmd_report(args: argparse.Namespace) -> int:
     if not os.path.isdir(output_dir):
         logger.error(f"Output directory not found: {output_dir}")
         return 1
-    reporter.generate(output_dir, target=Path(output_dir).name)
+    reporter.generate(output_dir)
     return 0
 
 
