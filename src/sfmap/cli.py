@@ -24,13 +24,17 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
         return args.output
     base = common.default_output_dir(args.url)
     label = getattr(args, "identity", None)
+    display: str | None = None
     if not label:
         if session is None or session.is_guest:
             label = "guest"
         else:
             with AuraClient(session) as tmp:
-                label = identity_mod.resolve(tmp)
-    return os.path.join(base, label)
+                label, display = identity_mod.resolve_with_display(tmp)
+    output_dir = os.path.join(base, label)
+    if display and display != label:
+        identity_mod.save_display_name(output_dir, display)
+    return output_dir
 
 
 def _resolve_file_arg(value: str | None, default_file: str) -> str | None:

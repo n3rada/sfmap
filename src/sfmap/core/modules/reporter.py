@@ -59,42 +59,29 @@ def _load_js() -> str:
         return ""
 
 
-def _detect_identities(output_dir: str) -> list[tuple[str, bool]]:
-    current = Path(output_dir).resolve()
-    parent  = current.parent
-    if not parent.is_dir():
-        return []
-    return [
-        (d.name, d.name == current.name)
-        for d in sorted(parent.iterdir())
-        if d.is_dir() and (d.name == current.name or (d / "report.html").exists())
-    ]
-
-
-def _identity_switcher_html(identities: list[tuple[str, bool]]) -> str:
-    if len(identities) <= 1:
-        return ""
-    pills = "".join(
-        f'<span class="identity-pill active">{_h(name)}</span>'
-        if is_current else
-        f'<a class="identity-pill" href="../{_h(name)}/report.html">{_h(name)}</a>'
-        for name, is_current in identities
-    )
+def _is_identity_dir(path: Path) -> bool:
     return (
-        '<div class="identity-switcher">'
-        '<span class="switcher-label">Identity</span>'
-        f'<div class="switcher-pills">{pills}</div>'
-        '</div>'
+        any(path.glob("graphql_dump_*.json"))
+        or any(path.glob("*__page1.json"))
+        or (path / "exposure_summary.json").is_file()
+        or (path / "graphql").is_dir()
     )
+
+
+def _read_display_name(identity_dir: Path) -> str:
+    p = identity_dir / "display_name.txt"
+    if p.is_file():
+        name = p.read_text(encoding="utf-8").strip()
+        if name:
+            return name
+    return identity_dir.name
 
 
 def _card(section_id: str, title: str, body: str) -> str:
     return (
-        f'<div class="card collapsible" id="{_h(section_id)}">'
-        f'<div class="card-title">{_h(title)}'
-        f'<span class="card-toggle" aria-hidden="true"></span>'
-        f'</div>'
-        f'<div class="card-body"><div>{body}</div></div>'
+        f'<div class="card" id="{_h(section_id)}">'
+        f'<div class="card-title">{_h(title)}</div>'
+        f'<div class="card-body">{body}</div>'
         f'</div>'
     )
 
@@ -121,26 +108,24 @@ def _flat_val(v: object) -> str:
 
 # ── Section builders ──────────────────────────────────────────────────────────
 
-def _section_guest_vs_auth(output_dir: str) -> str:
+def _section_access_objects(output_dir: str, is_guest: bool, guest_dir: str | None = None) -> str:
     base = Path(output_dir)
 
-    # Unauthenticated objects: GraphQL autodumps + Aura page dumps at root level
-    guest_objects: dict[str, int] = {}
+    primary: dict[str, int] = {}
     for p in sorted(base.glob("graphql_dump_*.json")):
         obj_name = p.stem.removeprefix("graphql_dump_")
         data = _load_json(p)
-        guest_objects[obj_name] = len(data) if isinstance(data, list) else 0
+        primary[obj_name] = len(data) if isinstance(data, list) else 0
 
-    # Aura getItems page files at root also indicate guest-accessible objects
     for p in sorted(base.glob("*__page1.json")):
         if m := re.match(r"^(.+)__page1\.json$", p.name):
             obj = m.group(1)
-            if obj not in guest_objects:
+            if obj not in primary:
                 data = _load_json(p)
                 total = (data.get("totalCount", 0) or 0) if isinstance(data, dict) else 0
-                guest_objects[obj] = total
+                primary[obj] = total
 
-    auth_objects: dict[str, int] = {}
+    sweep: dict[str, int] = {}
     graphql_dir = base / "graphql"
     if graphql_dir.is_dir():
         for p in sorted(graphql_dir.glob("graphql_*.json")):
@@ -156,43 +141,61 @@ def _section_guest_vs_auth(output_dir: str) -> str:
                         .get(obj_name, {})
                         .get("totalCount", 0)
                 ) or 0
-                auth_objects[obj_name] = total
+                sweep[obj_name] = total
 
-    if not guest_objects and not auth_objects:
+    if not primary and not sweep:
         return ""
 
-    auth_set  = set(auth_objects)
-    auth_only = sorted(set(auth_objects) - set(guest_objects))
-    parts: list[str] = [
-        '<p>The Salesforce Guest User profile exposes the objects below to anyone on the internet '
-        'without authentication. This is a misconfiguration under the Shared Responsibility Model: '
-        'the guest profile has been granted read access beyond what the application requires.</p>'
-    ]
+    # Load guest objects for comparison column in auth tabs
+    guest_set: set[str] = set()
+    if guest_dir and not is_guest:
+        gbase = Path(guest_dir)
+        for p in gbase.glob("graphql_dump_*.json"):
+            guest_set.add(p.stem.removeprefix("graphql_dump_"))
+        for p in gbase.glob("*__page1.json"):
+            if m := re.match(r"^(.+)__page1\.json$", p.name):
+                guest_set.add(m.group(1))
 
-    if guest_objects:
-        total_recs = sum(guest_objects.values())
-        rows = [
-            [
-                f"<code>{_h(obj)}</code>",
-                f'<span class="num">{guest_objects[obj]:,}</span>',
-                "yes" if obj in auth_set else "no",
-            ]
-            for obj in sorted(guest_objects, key=lambda x: -guest_objects[x])
-        ]
+    sweep_only = sorted(set(sweep) - set(primary))
+    parts: list[str] = []
+
+    if is_guest:
         parts.append(
-            f'<h3>Accessible Without Authentication: {len(guest_objects)} object(s), {total_recs:,} record(s)</h3>'
+            '<p>The Salesforce Guest User profile exposes the objects below to anyone on the internet '
+            'without authentication. This is a misconfiguration under the Shared Responsibility Model: '
+            'the guest profile has been granted read access beyond what the application requires.</p>'
         )
-        parts.append(_table(["Object", "Records", "Also in Auth Run"], rows))
+    else:
+        parts.append('<p>Objects accessible with this authenticated session.</p>')
 
-    if auth_only:
+    if primary:
+        total_recs = sum(primary.values())
+        show_guest_col = bool(guest_set) and not is_guest
+        headers = ["Object", "Records"] + (["Also as Guest"] if show_guest_col else [])
+        rows = []
+        for obj in sorted(primary, key=lambda x: -primary[x]):
+            row = [f"<code>{_h(obj)}</code>", f'<span class="num">{primary[obj]:,}</span>']
+            if show_guest_col:
+                row.append("yes" if obj in guest_set else '<span class="muted">no</span>')
+            rows.append(row)
+        label = "Without Authentication" if is_guest else "Authenticated"
+        parts.append(f'<h3>Accessible ({label}): {len(primary)} object(s), {total_recs:,} record(s)</h3>')
+        parts.append(_table(headers, rows))
+
+    if sweep_only:
         rows2 = [
-            [f"<code>{_h(obj)}</code>", f'<span class="num">{auth_objects[obj]:,}</span>']
-            for obj in sorted(auth_only, key=lambda x: -auth_objects[x])
+            [f"<code>{_h(obj)}</code>", f'<span class="num">{sweep[obj]:,}</span>']
+            for obj in sorted(sweep_only, key=lambda x: -sweep[x])
         ]
-        parts.append(f'<h3>Authenticated-Only Objects: {len(auth_only)} additional</h3>')
+        parts.append(f'<h3>Query Sweep Only: {len(sweep_only)} additional object(s)</h3>')
         parts.append(_table(["Object", "Total Records"], rows2))
 
-    return _card("guest-exposure", "Guest User Data Exposure", "\n".join(parts))
+    if is_guest:
+        return _card("access", "Guest User Data Exposure", "\n".join(parts))
+
+    return _card("access", "Authenticated Access", "\n".join(parts))
+
+
 
 
 def _section_listviews(output_dir: str) -> str:
@@ -702,8 +705,7 @@ def _section_graphql_schema(output_dir: str) -> str:
         ])
 
     body = (
-        f'<p>{len(object_types)} OBJECT type(s) in the GraphQL introspection schema. '
-        f'Click a row to see all field names.</p>'
+        f'<p>{len(object_types)} OBJECT type(s) in the GraphQL introspection schema.</p>'
         + _table(["Type", "Fields", "Field Names"], rows)
     )
     return _card("graphql-schema", "GraphQL: Schema Types", body)
@@ -711,54 +713,97 @@ def _section_graphql_schema(output_dir: str) -> str:
 
 # ── Report generator ──────────────────────────────────────────────────────────
 
+def _build_tab_panel(
+    identity_dir: Path,
+    display_name: str,
+    tab_id: str,
+    is_active: bool,
+    guest_dir: Path | None,
+) -> str:
+    is_guest = identity_dir.name == "guest"
+    od = str(identity_dir)
+    gd = str(guest_dir) if guest_dir and guest_dir != identity_dir else None
+
+    sections: list[tuple[str, str]] = [
+        ("access",         _section_access_objects(od, is_guest, gd)),
+        ("listviews",      _section_listviews(od)),
+        ("graphql-query",  _section_graphql_query(od)),
+        ("graphql-schema", _section_graphql_schema(od)),
+        ("graphql-dumps",  _section_graphql_dumps(od)),
+        ("aura-dump",      _section_aura_dump(od)),
+        ("idor",           _section_idor(od)),
+        ("chatter",        _section_chatter(od)),
+        ("network",        _section_network(od)),
+        ("static",         _section_static(od)),
+        ("crud",           _section_crud(od)),
+        ("flow",           _section_flow(od)),
+        ("apexrest",       _section_apex(od)),
+        ("exposure",       _section_exposure(od)),
+    ]
+    active_sections = [(sid, body) for sid, body in sections if body]
+
+    if not active_sections:
+        logger.warning(f"No finding files found in {identity_dir}")
+
+    cards = "\n".join(body for _, body in active_sections)
+    active_class = " active" if is_active else ""
+    return (
+        f'<div id="{_h(tab_id)}" class="tab-panel{active_class}">'
+        f'<div class="layout">{cards}</div>'
+        f'</div>'
+    )
+
+
 def generate(output_dir: str, target: str | None = None) -> str:
     """
-    Scan output_dir for finding files and write a self-contained HTML report.
+    Generate a single self-contained HTML report with one tab per identity.
+    Accepts either a parent directory (contains identity subdirs) or a single
+    identity directory. The report is saved at the parent directory level.
     Returns the path to the saved file.
     """
-    base = Path(output_dir)
+    base = Path(output_dir).resolve()
+
+    if _is_identity_dir(base):
+        identity_dirs = [base]
+        report_dir = base.parent if base.parent.is_dir() else base
+    else:
+        identity_dirs = sorted(d for d in base.iterdir() if d.is_dir() and _is_identity_dir(d))
+        report_dir = base
+
+    if not identity_dirs:
+        logger.warning(f"No identity directories found in {output_dir}")
+        return ""
+
     if target is None:
-        target = base.resolve().name
+        target = report_dir.name.removeprefix("salesforce_")
 
-    date_str      = datetime.now().strftime("%Y-%m-%d")
-    identities    = _detect_identities(output_dir)
-    switcher_html = _identity_switcher_html(identities)
+    guest_dir = next((d for d in identity_dirs if d.name == "guest"), None)
+    date_str  = datetime.now().strftime("%Y-%m-%d")
+    css = _load_css()
+    js  = _load_js()
 
-    sections: list[tuple[str, str, str]] = [
-        ("guest-exposure",  "Guest User Data Exposure", _section_guest_vs_auth(output_dir)),
-        ("listviews",       "UI List Views",           _section_listviews(output_dir)),
-        ("graphql-query",   "GraphQL Query Sweep",     _section_graphql_query(output_dir)),
-        ("graphql-schema",  "GraphQL Schema Types",    _section_graphql_schema(output_dir)),
-        ("graphql-dumps",   "GraphQL Field Dumps",     _section_graphql_dumps(output_dir)),
-        ("aura-dump",       "Aura getItems Dump",      _section_aura_dump(output_dir)),
-        ("idor",            "IDOR",                    _section_idor(output_dir)),
-        ("chatter",         "Chatter Probe",           _section_chatter(output_dir)),
-        ("network",         "Network Config",          _section_network(output_dir)),
-        ("static",          "Static Resources",        _section_static(output_dir)),
-        ("crud",            "CRUD Write Access",       _section_crud(output_dir)),
-        ("flow",            "Flow API Names",          _section_flow(output_dir)),
-        ("apexrest",        "ApexREST Endpoints",      _section_apex(output_dir)),
-        ("exposure",        "Exposure Checks",         _section_exposure(output_dir)),
-    ]
-    active = [(sid, label, body) for sid, label, body in sections if body]
+    tab_btns:   list[str] = []
+    tab_panels: list[str] = []
 
-    if not active:
-        logger.warning(f"No finding files found in {output_dir}")
+    for i, id_dir in enumerate(identity_dirs):
+        tab_id       = f"tab-{i}"
+        is_active    = i == 0
+        display_name = _read_display_name(id_dir)
+        active_class = " active" if is_active else ""
+        tab_btns.append(
+            f'<button class="tab-btn{active_class}" data-target="{_h(tab_id)}">'
+            f'{_h(display_name)}</button>'
+        )
+        tab_panels.append(_build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir))
 
-    toc_items = "\n".join(
-        f'<li><a href="#{_h(sid)}">{_h(label)}</a></li>'
-        for sid, label, _ in active
-    )
-    cards = "\n".join(body for _, _, body in active)
-    css   = _load_css()
-    js    = _load_js()
+    tab_bar    = '<div class="tab-bar">' + "".join(tab_btns) + '</div>'
+    panels_html = "\n".join(tab_panels)
 
     page = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="sfmap security assessment report for {_h(target)}">
 <title>sfmap: {_h(target)}</title>
 <style>{css}</style>
 </head>
@@ -770,7 +815,6 @@ def generate(output_dir: str, target: str | None = None) -> str:
       <span class="badge-sfmap">sfmap</span>
       <span class="header-title">Security Assessment Report</span>
     </div>
-    {switcher_html}
     <div class="header-right">
       <div class="meta-block">
         <span class="meta-label">Target</span>
@@ -781,42 +825,22 @@ def generate(output_dir: str, target: str | None = None) -> str:
         <span class="meta-value">{date_str}</span>
       </div>
       <div class="meta-block">
-        <span class="meta-label">Sections</span>
-        <span class="meta-value">{len(active)}</span>
+        <span class="meta-label">Identities</span>
+        <span class="meta-value">{len(identity_dirs)}</span>
       </div>
     </div>
   </div>
 </header>
 
-<div class="layout">
-  <nav class="toc" aria-label="Sections">
-    <span class="toc-heading">Contents</span>
-    <ol>{toc_items}</ol>
-  </nav>
-  <main>
-{cards}
-  </main>
-</div>
+{tab_bar}
 
-<dialog id="detail-dialog" class="detail-dialog" aria-labelledby="detail-title">
-  <div class="detail-header">
-    <div class="detail-header-left">
-      <span class="detail-title" id="detail-title">Record Detail</span>
-      <span class="detail-hint">click a value to copy</span>
-    </div>
-    <form method="dialog">
-      <button class="detail-close-btn">Close</button>
-    </form>
-  </div>
-  <div class="detail-body" id="detail-body"></div>
-</dialog>
-<div id="copy-toast" class="copy-toast" role="status" aria-live="polite">Copied</div>
+{panels_html}
 
 <script>{js}</script>
 </body>
 </html>"""
 
-    report_path = base / "report.html"
+    report_path = report_dir / "report.html"
     report_path.write_text(page, encoding="utf-8")
     logger.info(f"HTML report saved → {report_path}")
     return str(report_path)

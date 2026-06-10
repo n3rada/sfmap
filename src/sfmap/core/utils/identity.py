@@ -108,3 +108,22 @@ def resolve(client: AuraClient) -> str:
 
     logger.debug("Identity: could not resolve, using 'authenticated'")
     return "authenticated"
+
+
+def resolve_with_display(client: AuraClient) -> tuple[str, str]:
+    """Return (safe_dir_name, display_name). Display name preserves original casing."""
+    raw = _via_rest(client) or _via_aura_user(client)
+    if raw:
+        display = re.sub(r"<[^>]+>", "", raw).strip()
+        return _safe(raw), display
+    return "authenticated", "authenticated"
+
+
+def save_display_name(output_dir: str, display_name: str) -> None:
+    """Write display_name.txt into the identity directory."""
+    from pathlib import Path
+    try:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        (Path(output_dir) / "display_name.txt").write_text(display_name, encoding="utf-8")
+    except Exception:
+        logger.exception(f"Could not write display_name.txt to {output_dir}")
