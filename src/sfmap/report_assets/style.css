@@ -248,6 +248,30 @@ pre {
   color: var(--text);
 }
 
+/* Copy button and action links */
+.copy-btn {
+  font-family: var(--font);
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-mid);
+  border-radius: var(--radius-sm);
+  padding: .3em .85em;
+  cursor: pointer;
+  transition: background var(--duration), color var(--duration);
+}
+.copy-btn:hover { background: var(--accent-mid); }
+.voyager-link {
+  font-size: .75rem;
+  font-weight: 500;
+  color: var(--accent);
+  text-decoration: none;
+  margin-left: .5rem;
+}
+.voyager-link:hover { text-decoration: underline; }
+.schema-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+
 /* HTML field preview */
 .html-render {
   max-height: 220px;

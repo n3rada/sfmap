@@ -738,11 +738,11 @@ def _section_graphql_schema(output_dir: str) -> str:
 
     rows = []
     for t in sorted(object_types, key=lambda x: x.get("name", "")):
-        name       = t.get("name", "")
-        fields     = t.get("fields") or []
+        name        = t.get("name", "")
+        fields      = t.get("fields") or []
         field_names = [f.get("name", "") for f in fields]
-        count      = len(field_names)
-        preview    = ", ".join(field_names[:10])
+        count       = len(field_names)
+        preview     = ", ".join(field_names[:10])
         if count > 10:
             preview += f", +{count - 10} more"
         rows.append([
@@ -751,8 +751,30 @@ def _section_graphql_schema(output_dir: str) -> str:
             f'<span class="muted">{_h(preview)}</span>',
         ])
 
+    # Ensure the schema is in {data: {__schema: ...}} form that Voyager expects
+    if "data" not in raw:
+        voyager_payload = {"data": raw}
+    else:
+        voyager_payload = raw
+
+    # Escape </script> so the JSON is safe inside a <script> block
+    schema_js = json.dumps(voyager_payload).replace("</", "<\\/")
+
+    copy_btn = (
+        f'<script>var __sfmap_schema__ = {schema_js};</script>'
+        '<button class="copy-btn" onclick="'
+        "navigator.clipboard.writeText(JSON.stringify(__sfmap_schema__,null,2))"
+        ".then(function(){var b=this;b.textContent='Copied!';setTimeout(function(){b.textContent='Copy introspection JSON'},2000)}.bind(this))"
+        '.catch(function(){alert(\'Clipboard not available\')})">'
+        "Copy introspection JSON</button>"
+        ' <a class="voyager-link" href="https://apis.guru/graphql-voyager/" target="_blank" rel="noopener">'
+        "open GraphQL Voyager</a>"
+        ' <span class="muted">(paste via "Change Schema" in Voyager)</span>'
+    )
+
     body = (
         f'<p>{len(object_types)} OBJECT type(s) in the GraphQL introspection schema.</p>'
+        f'<p class="schema-actions">{copy_btn}</p>'
         + _table(["Type", "Fields", "Field Names"], rows)
     )
     return _card("graphql-schema", "GraphQL: Schema Types", body)
