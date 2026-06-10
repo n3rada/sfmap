@@ -1,6 +1,7 @@
 # Built-in imports
 import json
 import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 # Third-party imports
@@ -404,6 +405,24 @@ def query_objects(
     hit_count = sum(1 for v in results.values() if v > 0)
     logger.info(f"GraphQL queries complete: {hit_count}/{len(object_names)} object(s) returned data")
     return results
+
+
+def schema_object_names(schema_path: Path | str) -> list[str]:
+    """Extract OBJECT type names from a saved GraphQL introspection schema file."""
+    try:
+        raw = json.loads(Path(schema_path).read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception(f"Failed to read schema {schema_path}")
+        return []
+    types_raw = (
+        raw.get("data", {}).get("__schema", {}).get("types")
+        or raw.get("__schema", {}).get("types")
+        or []
+    )
+    return [
+        t["name"] for t in types_raw
+        if t.get("kind") == "OBJECT" and not t.get("name", "").startswith("__")
+    ]
 
 
 def _summarise(schema: dict) -> None:

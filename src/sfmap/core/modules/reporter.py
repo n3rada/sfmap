@@ -164,7 +164,9 @@ def _section_guest_vs_auth(output_dir: str) -> str:
     auth_set  = set(auth_objects)
     auth_only = sorted(set(auth_objects) - set(guest_objects))
     parts: list[str] = [
-        '<p>Objects accessible without authentication vs. objects that require a session.</p>'
+        '<p>The Salesforce Guest User profile exposes the objects below to anyone on the internet '
+        'without authentication. This is a misconfiguration under the Shared Responsibility Model: '
+        'the guest profile has been granted read access beyond what the application requires.</p>'
     ]
 
     if guest_objects:
@@ -190,7 +192,7 @@ def _section_guest_vs_auth(output_dir: str) -> str:
         parts.append(f'<h3>Authenticated-Only Objects: {len(auth_only)} additional</h3>')
         parts.append(_table(["Object", "Total Records"], rows2))
 
-    return _card("guest-auth-diff", "Access: Unauthenticated vs Authenticated", "\n".join(parts))
+    return _card("guest-exposure", "Guest User Data Exposure", "\n".join(parts))
 
 
 def _section_listviews(output_dir: str) -> str:
@@ -723,7 +725,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
     switcher_html = _identity_switcher_html(identities)
 
     sections: list[tuple[str, str, str]] = [
-        ("guest-auth-diff", "Unauth vs Auth",         _section_guest_vs_auth(output_dir)),
+        ("guest-exposure",  "Guest User Data Exposure", _section_guest_vs_auth(output_dir)),
         ("listviews",       "UI List Views",           _section_listviews(output_dir)),
         ("graphql-query",   "GraphQL Query Sweep",     _section_graphql_query(output_dir)),
         ("graphql-schema",  "GraphQL Schema Types",    _section_graphql_schema(output_dir)),

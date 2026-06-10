@@ -267,7 +267,15 @@ def cmd_graphql_query(args: argparse.Namespace) -> int:
     output_dir = _resolve_output_dir(args, session)
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
-        results = graphql.query_objects(client, list(all_objects.keys()), output_dir)
+        object_names = list(all_objects.keys())
+        schema_path = Path(output_dir) / "graphql" / "graphql_schema.json"
+        if schema_path.is_file():
+            schema_names = graphql.schema_object_names(schema_path)
+            extra = [n for n in schema_names if n not in all_objects]
+            if extra:
+                logger.info(f"Schema expands sweep by {len(extra)} type(s) not in getConfigData")
+                object_names.extend(extra)
+        results = graphql.query_objects(client, object_names, output_dir)
     return 1 if any(v > 0 for v in results.values()) else 0
 
 
@@ -331,6 +339,14 @@ def cmd_related_lists(args: argparse.Namespace) -> int:
             object_api_name=getattr(args, "object", None),
         )
     return 1 if any(v > 0 for v in results.values()) else 0
+
+
+def cmd_aura_follow(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    output_dir = _resolve_output_dir(args, session)
+    with AuraClient(session) as client:
+        results = relatedlist.sweep(client, output_dir)
+    return 1 if results else 0
 
 
 def cmd_flow_fuzz(args: argparse.Namespace) -> int:
@@ -557,6 +573,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_related.add_argument("--object", default=None, metavar="OBJECT_API_NAME",
                            help="Object API name (resolved automatically if omitted)")
     p_related.set_defaults(func=cmd_related_lists)
+
+    p_follow = aura_sub.add_parser(
+        "follow",
+        help="Follow child relations from existing dump records to discover reachable objects",
+    )
+    _add_common_args(p_follow)
+    p_follow.set_defaults(func=cmd_aura_follow)
 
     p_idor = aura_sub.add_parser(
         "idor",

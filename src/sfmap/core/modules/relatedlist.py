@@ -1,6 +1,7 @@
 # Built-in imports
 import json
-import os
+import re
+from pathlib import Path
 
 # Third-party imports
 from loguru import logger
@@ -134,15 +135,14 @@ def probe(
         else:
             logger.debug(f"{rel}: 0 records")
 
-    os.makedirs(output_dir, exist_ok=True)
-    out = os.path.join(output_dir, f"relatedlists_{record_id}.json")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps({
-            "record_id": record_id,
-            "object_api_name": object_api_name,
-            "results": results,
-            "findings": findings,
-        }, ensure_ascii=False, indent=2))
+    out = Path(output_dir) / f"relatedlists_{record_id}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps({
+        "record_id": record_id,
+        "object_api_name": object_api_name,
+        "results": results,
+        "findings": findings,
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     hit_count = sum(1 for v in results.values() if v > 0)
     if hit_count:
@@ -151,3 +151,63 @@ def probe(
         logger.info(f"No accessible child records found across {len(relationships)} relationship(s)")
 
     return results
+
+
+def sweep(client: AuraClient, output_dir: str) -> dict[str, dict[str, int]]:
+    """
+    Scan output_dir for existing Aura and GraphQL dumps, probe child
+    relations from one sample record per object type. Discovers objects
+    reachable through relations that enumeration alone would miss.
+
+    Returns {object_name: {relation: count}} for objects with accessible children.
+    """
+    base = Path(output_dir)
+    samples: dict[str, str] = {}  # object_name -> record_id
+
+    for page_file in sorted(base.glob("*__page1.json")):
+        if m := re.match(r"^(.+)__page1\.json$", page_file.name):
+            obj_name = m.group(1)
+            if obj_name in samples:
+                continue
+            try:
+                data = json.loads(page_file.read_text(encoding="utf-8"))
+                result = data.get("result", [])
+                if result and isinstance(result[0], dict):
+                    record_id = result[0].get("record", {}).get("Id")
+                    if record_id:
+                        samples[obj_name] = record_id
+            except Exception:
+                logger.exception(f"Failed to read {page_file}")
+
+    for dump_file in sorted(base.glob("graphql_dump_*.json")):
+        obj_name = dump_file.stem.removeprefix("graphql_dump_")
+        if obj_name in samples:
+            continue
+        try:
+            data = json.loads(dump_file.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data and isinstance(data[0], dict):
+                record_id = data[0].get("Id")
+                if record_id:
+                    samples[obj_name] = record_id
+        except Exception:
+            logger.exception(f"Failed to read {dump_file}")
+
+    if not samples:
+        logger.info("No existing dumps found to follow relations from")
+        return {}
+
+    logger.info(f"Following relations from {len(samples)} object type(s)")
+    probed: dict[str, dict[str, int]] = {}
+    for obj_name, record_id in sorted(samples.items()):
+        logger.info(f"Probing {obj_name} ({record_id})")
+        results = probe(client, record_id, output_dir, object_api_name=obj_name)
+        if any(v > 0 for v in results.values()):
+            probed[obj_name] = results
+
+    total_hits = sum(len(v) for v in probed.values())
+    if total_hits:
+        logger.success(f"Relation sweep: {total_hits} accessible relationship(s) across {len(probed)} object(s)")
+    else:
+        logger.info("Relation sweep: no accessible child records found")
+
+    return probed
