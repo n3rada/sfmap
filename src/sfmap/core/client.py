@@ -19,12 +19,22 @@ USER_AGENT = (
 )
 
 
+class AuraSessionExpired(RuntimeError):
+    def __init__(self, new_token: str = ""):
+        self.new_token = new_token
+        msg = "Aura session expired (aura:invalidSession)"
+        if new_token == "invalid_csrf":
+            msg += ": CSRF token rejected by server, refresh token.txt"
+        elif new_token:
+            msg += f": server sent new token hint '{new_token}', refresh token.txt"
+        super().__init__(msg)
+
+
 class AuraClient:
     def __init__(
         self, session: Session, authenticated: bool | None = None, verify_ssl: bool = False
     ):
         self._session = session
-        # If caller doesn't specify, derive from session: guest session → unauthenticated
         if authenticated is None:
             authenticated = not session.is_guest
         self._authenticated = authenticated
@@ -65,7 +75,11 @@ class AuraClient:
 
     def aura_post(self, message: dict) -> dict:
         token = self._session.token if self._authenticated else "undefined"
-        return self._post(message, token)
+        resp = self._post(message, token)
+        if resp.get("exceptionEvent") and resp.get("event", {}).get("descriptor") == "markup://aura:invalidSession":
+            new_token = resp.get("event", {}).get("attributes", {}).get("values", {}).get("newToken", "")
+            raise AuraSessionExpired(new_token)
+        return resp
 
     def get(self, url: str, follow_redirects: bool = True) -> "httpx.Response":
         logger.trace(f"GET {url}")
@@ -74,7 +88,6 @@ class AuraClient:
         return resp
 
     def rest_get(self, url: str) -> "httpx.Response":
-        """GET with OAuth Bearer header when a bearer_token is configured."""
         headers = {}
         if self._session.bearer_token:
             headers["Authorization"] = f"Bearer {self._session.bearer_token}"
@@ -84,7 +97,6 @@ class AuraClient:
         return resp
 
     def rest_post(self, url: str, **kwargs) -> "httpx.Response":
-        """POST with OAuth Bearer header when a bearer_token is configured."""
         headers = kwargs.pop("headers", {})
         if self._session.bearer_token:
             headers["Authorization"] = f"Bearer {self._session.bearer_token}"

@@ -25,9 +25,6 @@ def list_objects(client: AuraClient) -> dict[str, str]:
     logger.trace(f"getConfigData ({mode})")
     response = client.aura_post(PAYLOAD_GET_CONFIG)
 
-    if response.get("exceptionEvent"):
-        raise RuntimeError(f"Aura exception: {response}")
-
     actions = response.get("actions", [])
     if not actions or actions[0].get("state") is None:
         raise RuntimeError(f"Unexpected response: {response}")

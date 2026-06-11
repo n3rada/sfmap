@@ -40,17 +40,27 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
     return output_dir
 
 
-def _resolve_file_arg(value: str | None, default_file: str) -> str | None:
+def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> str | None:
     raw = value or f"@{default_file}"
     if raw.startswith("@"):
         path = Path(raw[1:])
         if not path.exists():
+            if value:
+                logger.error(f"{label}: file not found: {path}")
+                raise SystemExit(1)
+            logger.debug(f"{label}: {path} not found, skipping")
             return None
         try:
-            return path.read_text(encoding="utf-8-sig").strip() or None
+            content = path.read_text(encoding="utf-8-sig").strip() or None
         except OSError as exc:
-            logger.exception(f"Cannot read file '{path}'")
+            logger.error(f"{label}: cannot read {path}: {exc}")
             raise SystemExit(1) from exc
+        if content:
+            logger.info(f"{label}: loaded from {path} ({len(content)} chars)")
+        else:
+            logger.warning(f"{label}: {path} exists but is empty")
+        return content
+    logger.info(f"{label}: loaded from command-line argument")
     return raw or None
 
 
@@ -81,32 +91,37 @@ def _build_session(args: argparse.Namespace) -> Session:
             try:
                 raw = path.read_text(encoding="utf-8-sig").strip()
                 context = json.loads(raw)
+                logger.info(f"context: loaded from {path}")
             except OSError as exc:
-                logger.exception(f"Cannot read context file '{path}'")
+                logger.error(f"context: cannot read {path}: {exc}")
                 raise SystemExit(1) from exc
             except json.JSONDecodeError as exc:
-                logger.exception(f"Context file '{path}' is not valid JSON")
+                logger.error(f"context: {path} is not valid JSON: {exc}")
                 raise SystemExit(1) from exc
     else:
         try:
             context = json.loads(raw_context)
+            logger.info("context: loaded from command-line argument")
         except json.JSONDecodeError as exc:
-            logger.exception("context is not valid JSON")
+            logger.error(f"context: not valid JSON: {exc}")
             raise SystemExit(1) from exc
 
     # -- credentials ---------------------------------------------------
     # Resolve cookie first: auto-extracted token is only valid when a session
     # cookie is also present. Without a cookie the extracted JWT is a guest
     # CSRF token that the server rejects when no SID accompanies it.
-    cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt")
-    bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt")
+    cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt", "cookie")
+    bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt", "bearer")
 
-    token_raw = _resolve_file_arg(getattr(args, "token", None), "token.txt")
+    token_raw = _resolve_file_arg(getattr(args, "token", None), "token.txt", "token")
     if token_raw is None and extracted_token and cookie:
         token = extracted_token
-        logger.debug("Using auto-extracted Aura token from page HTML")
+        logger.info("token: using auto-extracted value from page HTML")
+    elif token_raw is None:
+        token = "undefined"
+        logger.info("token: none found, using 'undefined' (guest mode)")
     else:
-        token = token_raw or "undefined"
+        token = token_raw
 
     return Session(
         url=url,
@@ -1054,4 +1069,9 @@ def main() -> int:
 
         logger.info(f"Proxy set to {args.proxy}")
 
-    return args.func(args)
+    from .core.client import AuraSessionExpired
+    try:
+        return args.func(args)
+    except AuraSessionExpired as exc:
+        logger.error(str(exc))
+        return 1
