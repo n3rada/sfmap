@@ -2,9 +2,11 @@
 
 # Built-in imports
 import argparse
+import base64
 import json
 import os
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import unquote_plus
 
@@ -65,14 +67,7 @@ def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> 
     return raw or None
 
 
-def _parse_burp_request(path: Path) -> tuple[str | None, str | None]:
-    """Return (cookie_header_value, aura_token) parsed from a raw Burp HTTP request file."""
-    try:
-        text = path.read_text(encoding="utf-8-sig")
-    except OSError:
-        logger.exception(f"burp: cannot read {path}")
-        return None, None
-
+def _parse_raw_http(text: str) -> tuple[str | None, str | None]:
     sep = "\r\n\r\n" if "\r\n\r\n" in text else "\n\n"
     parts = text.split(sep, 1)
     header_section = parts[0]
@@ -95,6 +90,42 @@ def _parse_burp_request(path: Path) -> tuple[str | None, str | None]:
             break
 
     return cookie, aura_token
+
+
+def _parse_burp_request(path: Path) -> tuple[str | None, str | None]:
+    """Return (cookie_header_value, aura_token) from a Burp export file.
+
+    Handles both raw HTTP request text and Burp XML exports (base64-encoded).
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        logger.exception(f"burp: cannot read {path}")
+        return None, None
+
+    stripped = text.lstrip()
+    if stripped.startswith("<?xml") or stripped.startswith("<items"):
+        try:
+            root = ET.fromstring(text)
+            item = root.find("item")
+            if item is None:
+                logger.warning("burp: XML export has no <item> elements")
+                return None, None
+            req_elem = item.find("request")
+            if req_elem is None:
+                logger.warning("burp: XML <item> has no <request> element")
+                return None, None
+            raw_bytes = req_elem.text or ""
+            if req_elem.get("base64") == "true":
+                http_text = base64.b64decode(raw_bytes).decode("utf-8", errors="replace")
+            else:
+                http_text = raw_bytes
+        except ET.ParseError:
+            logger.exception("burp: failed to parse XML export")
+            return None, None
+        return _parse_raw_http(http_text)
+
+    return _parse_raw_http(text)
 
 
 def _build_session(args: argparse.Namespace) -> Session:
