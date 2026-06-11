@@ -140,11 +140,20 @@ def probe_guest(
                         f"IDOR: record {record_id} data accessible as guest "
                         f"(prefix={record_id[:3]}, fields={rv_keys[:5]})"
                     )
+                    record_obj = rv.get("record", {}) if isinstance(rv, dict) else {}
+                    fields = record_obj.get("fields", {}) if isinstance(record_obj, dict) else {}
+                    name = None
+                    for fname in ("PathOnClient", "Title", "Name"):
+                        fval = fields.get(fname)
+                        if isinstance(fval, dict) and fval.get("value"):
+                            name = fval["value"]
+                            break
                     findings.append({
                         "id": record_id,
                         "prefix": record_id[:3],
                         "object_type": _OBJECT_PREFIXES.get(record_id[:3]),
                         "return_value_keys": rv_keys,
+                        "record_name": name,
                     })
             except Exception:
                 logger.exception(f"IDOR probe error for {record_id}")

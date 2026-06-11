@@ -446,7 +446,13 @@ def _section_aura_dump(output_dir: str, rel_dir: str = "") -> str:
     return _card("aura-dump", "Aura: getItems Dump", body)
 
 
-def _section_idor(output_dir: str) -> str:
+_DOWNLOAD_PATHS: dict[str, str] = {
+    "068": "/servlet.shepherd/version/download/",
+    "069": "/servlet.shepherd/document/download/",
+}
+
+
+def _section_idor(output_dir: str, target: str = "") -> str:
     p = Path(output_dir) / "idor_findings.json"
     if not p.is_file():
         return ""
@@ -457,21 +463,29 @@ def _section_idor(output_dir: str) -> str:
     if not findings:
         return ""
 
+    base_url = f"https://{target}" if target else ""
+
     rows = []
     for f in findings:
-        rec_id = _h(f.get("id", f.get("record_id", "")))
+        raw_id = f.get("id", f.get("record_id", ""))
+        rec_id = _h(raw_id)
         obj = _h(f.get("object_type", f.get("object", f.get("apiName", ""))))
-        keys = f.get("return_value_keys", list(f.get("fields", {}).keys()))
-        key_str = (
-            ", ".join(_h(k) for k in keys)
-            if keys
-            else '<span class="muted">unknown</span>'
-        )
-        rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", key_str])
+        prefix = raw_id[:3]
+        dl_path = _DOWNLOAD_PATHS.get(prefix)
+        if dl_path and base_url:
+            url = f"{base_url}{dl_path}{raw_id}"
+            download_cell = f'<a href="{_h(url)}" target="_blank" rel="noopener noreferrer">{_h(url)}</a>'
+        elif dl_path:
+            download_cell = f'<code>{dl_path}{rec_id}</code>'
+        else:
+            download_cell = '<span class="muted">N/A</span>'
+        record_name = _h(f.get("record_name") or "")
+        name_cell = f"<code>{record_name}</code>" if record_name else '<span class="muted">unknown</span>'
+        rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", name_cell, download_cell])
 
     body = (
         f"<p>{len(findings)} record ID(s) responded with data when fetched without authentication.</p>"
-        + _table(["Record ID", "Object", "Return Value Keys"], rows)
+        + _table(["Record ID", "Object", "Name", "Download"], rows)
     )
     return _card("idor", "IDOR: Unauthenticated getRecord", body)
 
@@ -977,6 +991,7 @@ def _build_tab_panel(
     tab_id: str,
     is_active: bool,
     guest_dir: Path | None,
+    target: str = "",
 ) -> str:
     is_guest = identity_dir.name == "guest"
     od = str(identity_dir)
@@ -985,7 +1000,7 @@ def _build_tab_panel(
 
     sections: list[tuple[str, str]] = [
         ("access", _section_access_objects(od, is_guest, display_name, gd, rel)),
-        ("idor", _section_idor(od)),
+        ("idor", _section_idor(od, target)),
         ("crud", _section_crud(od)),
         ("chatter", _section_chatter(od)),
         ("graphql-dumps", _section_graphql_dumps(od, rel)),
@@ -1057,7 +1072,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
             f"{_h(display_name)}</button>"
         )
         tab_panels.append(
-            _build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir)
+            _build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir, target)
         )
 
     tab_bar = '<div class="tab-bar">' + "".join(tab_btns) + "</div>"
