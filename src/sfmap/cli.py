@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from urllib.parse import unquote_plus
 
 # Third-party imports
 from loguru import logger
@@ -64,6 +65,38 @@ def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> 
     return raw or None
 
 
+def _parse_burp_request(path: Path) -> tuple[str | None, str | None]:
+    """Return (cookie_header_value, aura_token) parsed from a raw Burp HTTP request file."""
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        logger.exception(f"burp: cannot read {path}")
+        return None, None
+
+    sep = "\r\n\r\n" if "\r\n\r\n" in text else "\n\n"
+    parts = text.split(sep, 1)
+    header_section = parts[0]
+    body = parts[1] if len(parts) > 1 else ""
+
+    line_sep = "\r\n" if "\r\n" in header_section else "\n"
+    header_lines = header_section.split(line_sep)
+
+    cookie: str | None = None
+    for line in header_lines[1:]:
+        if line.lower().startswith("cookie:"):
+            cookie = line[7:].strip() or None
+            break
+
+    aura_token: str | None = None
+    for part in body.split("&"):
+        if part.startswith("aura.token="):
+            raw = part[len("aura.token="):]
+            aura_token = unquote_plus(raw) or None
+            break
+
+    return cookie, aura_token
+
+
 def _build_session(args: argparse.Namespace) -> Session:
     url = common.resolve_url(args.url)
     if url != args.url:
@@ -107,13 +140,36 @@ def _build_session(args: argparse.Namespace) -> Session:
             raise SystemExit(1) from exc
 
     # -- credentials ---------------------------------------------------
-    # Resolve cookie first: auto-extracted token is only valid when a session
-    # cookie is also present. Without a cookie the extracted JWT is a guest
-    # CSRF token that the server rejects when no SID accompanies it.
-    cookie = _resolve_file_arg(getattr(args, "cookie", None), "cookies.txt", "cookie")
+    # Burp request file takes precedence over cookies.txt / token.txt but not
+    # over explicit CLI --cookie / --token args.
+    burp_cookie: str | None = None
+    burp_token: str | None = None
+    burp_path = Path("burp.txt")
+    if burp_path.exists():
+        burp_cookie, burp_token = _parse_burp_request(burp_path)
+        if burp_cookie:
+            logger.info(f"burp: loaded cookie from {burp_path} ({len(burp_cookie)} chars)")
+        if burp_token:
+            logger.info(f"burp: loaded aura.token from {burp_path} ({len(burp_token)} chars)")
+
+    cookie_cli = getattr(args, "cookie", None)
+    if cookie_cli:
+        cookie = _resolve_file_arg(cookie_cli, "cookies.txt", "cookie")
+    elif burp_cookie:
+        cookie = burp_cookie
+    else:
+        cookie = _resolve_file_arg(None, "cookies.txt", "cookie")
+
     bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt", "bearer")
 
-    token_raw = _resolve_file_arg(getattr(args, "token", None), "token.txt", "token")
+    token_cli = getattr(args, "token", None)
+    if token_cli:
+        token_raw = _resolve_file_arg(token_cli, "token.txt", "token")
+    elif burp_token:
+        token_raw = burp_token
+    else:
+        token_raw = _resolve_file_arg(None, "token.txt", "token")
+
     if token_raw is None and extracted_token and cookie:
         token = extracted_token
         logger.info("token: using auto-extracted value from page HTML")
