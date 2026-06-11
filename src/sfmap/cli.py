@@ -479,24 +479,6 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    """
-    Full assessment: run every module in dependency order, then generate the report.
-
-    Phase 1 (independent): exposure surface, GraphQL introspection, static resources,
-    ApexREST, Chatter, network config, bootstrap.
-
-    Phase 2: object enumeration (getConfigData).
-
-    Phase 3 (needs objects): Aura dump, CRUD probe, SOQL injection, list views,
-    GraphQL query sweep, Flow fuzzing, Apex controller discovery.
-
-    Phase 4 (needs dump results): GraphQL field-level dump, related-object follow,
-    content enumeration.
-
-    Phase 5 (cross-identity): IDOR probe.
-
-    Phase 6: report generation.
-    """
     session = _build_session(args)
     base_output = common.default_output_dir(session.url)
     output_dir = _resolve_output_dir(args, session)
@@ -507,11 +489,10 @@ def cmd_scan(args: argparse.Namespace) -> int:
     def _skip(name: str) -> bool:
         return name in skip
 
-    logger.info(f"sfmap scan starting → {output_dir}")
+    logger.info(f"Scan Starting: {output_dir}")
 
     with AuraClient(session) as client:
-        # Phase 1: Independent recon
-        logger.info("Phase 1: Surface reconnaissance")
+        logger.info("Phase 1: Surface Reconnaissance")
 
         if not _skip("exposure"):
             try:
@@ -555,8 +536,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             except Exception:
                 logger.exception("bootstrap fetch failed")
 
-        # Phase 2: Object enumeration
-        logger.info("Phase 2: Object enumeration")
+        logger.info("Phase 2: Object Enumeration")
         all_objects: dict[str, str] = {}
         if not _skip("objects"):
             try:
@@ -566,8 +546,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             except Exception:
                 logger.exception("object enumeration failed")
 
-        # Phase 3: Parallel-safe enumeration (all depend on object list)
-        logger.info("Phase 3: Object-level enumeration")
+        logger.info("Phase 3: Object-Level Enumeration")
 
         if all_objects and not _skip("dump"):
             try:
@@ -634,8 +613,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             except Exception:
                 logger.exception("Apex controller discovery failed")
 
-        # Phase 4: Post-dump
-        logger.info("Phase 4: Post-dump enumeration")
+        logger.info("Phase 4: Post-Dump Enumeration")
 
         if not _skip("graphql-dump"):
             try:
@@ -655,9 +633,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
             except Exception:
                 logger.exception("content enumeration failed")
 
-    # Phase 5: IDOR (guest probe, no client needed)
     if not _skip("idor"):
-        logger.info("Phase 5: IDOR probe")
+        logger.info("Phase 5: IDOR Probe")
         try:
             record_ids = idor.collect_ids_from_directory(output_dir)
             if record_ids:
@@ -668,8 +645,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
         except Exception:
             logger.exception("IDOR probe failed")
 
-    # Phase 6: Report
-    logger.info("Phase 6: Generating report")
+    logger.info("Phase 6: Generating Report")
     reporter.generate(base_output)
     return 0
 
