@@ -887,9 +887,30 @@ def main() -> int:
         build_parser().print_help()
         return 1
 
+    # Pre-parse global flags first so they work anywhere in the command line.
+    # argparse stops forwarding flags once it hits a positional, so --trace
+    # placed after the URL would otherwise be rejected by a subparser.
+    pre = argparse.ArgumentParser(add_help=False)
+    pre.add_argument("--debug", action="store_true")
+    pre.add_argument("--trace", action="store_true")
+    pre.add_argument("--log-level", dest="log_level", default=None,
+                     choices=["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+    pre.add_argument("--proxy", nargs="?", const="http://127.0.0.1:8080", default=None)
+    pre_args, argv = pre.parse_known_args(sys.argv[1:])
+
+    if pre_args.log_level:
+        log_level = pre_args.log_level
+    elif pre_args.trace:
+        log_level = "TRACE"
+    elif pre_args.debug:
+        log_level = "DEBUG"
+    else:
+        log_level = "INFO"
+
+    logbook.setup_logging(level=log_level)
+
     # When a no-URL surface (e.g. "report") appears before any URL argument,
     # inject a placeholder so argparse can still parse the positional structure.
-    argv = sys.argv[1:]
     url_patched = False
     skip_next = False
     for i, arg in enumerate(argv):
@@ -909,18 +930,6 @@ def main() -> int:
     args = parser.parse_args(argv)
     if url_patched:
         args.url = None
-
-    # Determine log level: --log-level takes precedence, then --debug, then --trace, then default INFO
-    if args.log_level:
-        log_level = args.log_level
-    elif args.trace:
-        log_level = "TRACE"
-    elif args.debug:
-        log_level = "DEBUG"
-    else:
-        log_level = "INFO"
-
-    logbook.setup_logging(level=log_level)
 
     if args.proxy:
         if not args.proxy.startswith(("http://", "https://")):
