@@ -71,41 +71,57 @@ def _build_session(args: argparse.Namespace) -> Session:
         logger.debug(f"Resolved URL: {url} (from {args.url})")
 
     # -- context -------------------------------------------------------
+    # burp.txt carries aura.context in the POST body — use it in preference to
+    # ctx.json so the CSRF token and framework context always match.
     raw_context = args.context or "@ctx.json"
     extracted_token: str | None = None
+    burp_context_str: str | None = None
 
-    if raw_context.startswith("@"):
-        path = Path(raw_context[1:])
-        if not path.exists():
-            logger.info(f"No context file found at '{path}', auto-extracting from target")
+    burp_path_early = Path("burp.txt")
+    if burp_path_early.exists() and not args.context:
+        _, _, burp_context_str = burp_mod.parse_burp_request(burp_path_early)
+        if burp_context_str:
             try:
-                context, extracted_token = autocontext.extract(url)
-            except ValueError as exc:
-                logger.error(str(exc))
-                raise SystemExit(1) from exc
-            try:
-                path.write_text(json.dumps(context, indent=2), encoding="utf-8")
-                logger.info(f"Context saved to {path} for future runs")
-            except OSError:
-                pass
+                context = json.loads(burp_context_str)
+                ctx_path = Path("ctx.json")
+                ctx_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+                logger.info(f"burp: aura.context updated ctx.json (fwuid={context.get('fwuid', '?')!r})")
+            except (json.JSONDecodeError, OSError):
+                burp_context_str = None
+
+    if not burp_context_str:
+        if raw_context.startswith("@"):
+            path = Path(raw_context[1:])
+            if not path.exists():
+                logger.info(f"No context file found at '{path}', auto-extracting from target")
+                try:
+                    context, extracted_token = autocontext.extract(url)
+                except ValueError as exc:
+                    logger.error(str(exc))
+                    raise SystemExit(1) from exc
+                try:
+                    path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+                    logger.info(f"Context saved to {path} for future runs")
+                except OSError:
+                    pass
+            else:
+                try:
+                    raw = path.read_text(encoding="utf-8-sig").strip()
+                    context = json.loads(raw)
+                    logger.info(f"context: loaded from {path}")
+                except OSError as exc:
+                    logger.error(f"context: cannot read {path}: {exc}")
+                    raise SystemExit(1) from exc
+                except json.JSONDecodeError as exc:
+                    logger.error(f"context: {path} is not valid JSON: {exc}")
+                    raise SystemExit(1) from exc
         else:
             try:
-                raw = path.read_text(encoding="utf-8-sig").strip()
-                context = json.loads(raw)
-                logger.info(f"context: loaded from {path}")
-            except OSError as exc:
-                logger.error(f"context: cannot read {path}: {exc}")
-                raise SystemExit(1) from exc
+                context = json.loads(raw_context)
+                logger.info("context: loaded from command-line argument")
             except json.JSONDecodeError as exc:
-                logger.error(f"context: {path} is not valid JSON: {exc}")
+                logger.error(f"context: not valid JSON: {exc}")
                 raise SystemExit(1) from exc
-    else:
-        try:
-            context = json.loads(raw_context)
-            logger.info("context: loaded from command-line argument")
-        except json.JSONDecodeError as exc:
-            logger.error(f"context: not valid JSON: {exc}")
-            raise SystemExit(1) from exc
 
     # -- credentials ---------------------------------------------------
     # burp.txt is the primary credential source. When present, delete cookies.txt
@@ -114,11 +130,13 @@ def _build_session(args: argparse.Namespace) -> Session:
     burp_token: str | None = None
     burp_path = Path("burp.txt")
     if burp_path.exists():
-        burp_cookie, burp_token = burp_mod.parse_burp_request(burp_path)
+        burp_cookie, burp_token, burp_context_str = burp_mod.parse_burp_request(burp_path)
         if burp_cookie:
             logger.info(f"burp: loaded cookie from {burp_path} ({len(burp_cookie)} chars)")
         if burp_token:
             logger.info(f"burp: loaded aura.token from {burp_path} ({len(burp_token)} chars)")
+        if burp_context_str:
+            logger.info(f"burp: loaded aura.context from {burp_path}")
         for stale in ("cookies.txt", "token.txt"):
             p = Path(stale)
             if p.exists():

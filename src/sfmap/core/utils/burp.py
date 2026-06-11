@@ -10,7 +10,7 @@ from urllib.parse import unquote_plus
 from loguru import logger
 
 
-def _parse_raw_http(text: str) -> tuple[str | None, str | None]:
+def _parse_raw_http(text: str) -> tuple[str | None, str | None, str | None]:
     line_sep = "\r\n" if "\r\n" in text else "\n"
     lines = text.split(line_sep)
 
@@ -22,25 +22,26 @@ def _parse_raw_http(text: str) -> tuple[str | None, str | None]:
         if low.startswith("cookie:"):
             cookie = line[7:].strip() or None
             break
-        # Stop at the body (first line containing form-encoded data)
         if "aura.context=" in line or "aura.token=" in line:
             break
 
     aura_token: str | None = None
+    aura_context: str | None = None
     for part in text.split("&"):
         part = part.strip()
         if part.startswith("aura.token="):
-            raw = part[len("aura.token="):]
-            aura_token = unquote_plus(raw) or None
-            break
+            aura_token = unquote_plus(part[len("aura.token="):]) or None
+        elif part.startswith("aura.context="):
+            aura_context = unquote_plus(part[len("aura.context="):]) or None
 
-    return cookie, aura_token
+    return cookie, aura_token, aura_context
 
 
-def parse_burp_request(path: Path) -> tuple[str | None, str | None]:
+def parse_burp_request(path: Path) -> tuple[str | None, str | None, str | None]:
     """Return (cookie_header_value, aura_token) from a Burp export file.
 
     Handles both raw HTTP request text and Burp XML exports (base64-encoded).
+    Returns (cookie, aura_token, aura_context_json_str).
     """
     try:
         text = path.read_text(encoding="utf-8-sig")
