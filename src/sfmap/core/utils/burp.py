@@ -11,22 +11,24 @@ from loguru import logger
 
 
 def _parse_raw_http(text: str) -> tuple[str | None, str | None]:
-    sep = "\r\n\r\n" if "\r\n\r\n" in text else "\n\n"
-    parts = text.split(sep, 1)
-    header_section = parts[0]
-    body = parts[1] if len(parts) > 1 else ""
+    line_sep = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(line_sep)
 
-    line_sep = "\r\n" if "\r\n" in header_section else "\n"
-    header_lines = header_section.split(line_sep)
-
+    # Scan all lines for the Cookie header (handles HTTP/2 captures where
+    # blank lines appear between headers, pushing Cookie past the first double-CRLF).
     cookie: str | None = None
-    for line in header_lines[1:]:
-        if line.lower().startswith("cookie:"):
+    for line in lines[1:]:
+        low = line.lower()
+        if low.startswith("cookie:"):
             cookie = line[7:].strip() or None
+            break
+        # Stop at the body (first line containing form-encoded data)
+        if "aura.context=" in line or "aura.token=" in line:
             break
 
     aura_token: str | None = None
-    for part in body.split("&"):
+    for part in text.split("&"):
+        part = part.strip()
         if part.startswith("aura.token="):
             raw = part[len("aura.token="):]
             aura_token = unquote_plus(raw) or None

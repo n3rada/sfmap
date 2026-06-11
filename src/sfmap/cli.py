@@ -108,8 +108,8 @@ def _build_session(args: argparse.Namespace) -> Session:
             raise SystemExit(1) from exc
 
     # -- credentials ---------------------------------------------------
-    # Burp request file takes precedence over cookies.txt / token.txt but not
-    # over explicit CLI --cookie / --token args.
+    # burp.txt is the primary credential source. When present, delete cookies.txt
+    # and token.txt so stale files cannot interfere with subsequent runs.
     burp_cookie: str | None = None
     burp_token: str | None = None
     burp_path = Path("burp.txt")
@@ -119,6 +119,11 @@ def _build_session(args: argparse.Namespace) -> Session:
             logger.info(f"burp: loaded cookie from {burp_path} ({len(burp_cookie)} chars)")
         if burp_token:
             logger.info(f"burp: loaded aura.token from {burp_path} ({len(burp_token)} chars)")
+        for stale in ("cookies.txt", "token.txt"):
+            p = Path(stale)
+            if p.exists():
+                p.unlink()
+                logger.info(f"burp: removed stale {stale}")
 
     cookie_cli = getattr(args, "cookie", None)
     if cookie_cli:
