@@ -55,7 +55,7 @@ def _base_url(aura_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def _via_rest(client: AuraClient, aura_url: str) -> dict | None:
+def _via_rest(client: AuraClient, aura_url: str) -> tuple[dict | None, str]:
     """Try standard GraphQL introspection via the direct REST endpoint."""
     url = f"{_base_url(aura_url)}/services/data/{REST_API_VERSION}/graphql"
     try:
@@ -70,14 +70,21 @@ def _via_rest(client: AuraClient, aura_url: str) -> dict | None:
             data = resp.json()
             if data.get("data") or data.get("errors"):
                 logger.info(f"GraphQL introspection via REST succeeded ({url})")
-                return data
-        logger.debug(f"REST GraphQL → HTTP {resp.status_code} (introspection blocked or endpoint requires auth)")
+                return data, "success"
+        try:
+            body = resp.json()
+            detail = body[0].get("message", "") if isinstance(body, list) else body.get("message", "")
+        except Exception:
+            detail = resp.text[:200]
+        msg = f"HTTP {resp.status_code}: {detail}" if detail else f"HTTP {resp.status_code}"
+        logger.debug(f"REST GraphQL → {msg}")
+        return None, msg
     except Exception:
         logger.exception("REST GraphQL probe failed")
-    return None
+        return None, "request failed"
 
 
-def _via_aura(client: AuraClient) -> dict | None:
+def _via_aura(client: AuraClient) -> tuple[dict | None, str]:
     """Try GraphQL introspection via Aura executeGraphQL action."""
     payload = {
         "actions": [{
@@ -99,14 +106,14 @@ def _via_aura(client: AuraClient) -> dict | None:
         actions = resp.get("actions", [])
         if not actions:
             logger.trace(f"Aura introspection: no actions in response, keys={list(resp.keys())}")
-            return None
+            return None, "no actions in response"
         action = actions[0]
         state = action.get("state")
         logger.trace(f"Aura introspection action state={state}")
         if state == "SUCCESS":
             rv = action.get("returnValue", {})
             logger.info("GraphQL introspection via Aura executeGraphQL succeeded")
-            return rv
+            return rv, "success"
         errors = action.get("error", [])
         try:
             msg = errors[0]["event"]["attributes"]["values"]["error"]["message"]
@@ -116,9 +123,10 @@ def _via_aura(client: AuraClient) -> dict | None:
             except (IndexError, KeyError):
                 msg = str(errors)
         logger.info(f"Aura GraphQL: {msg}")
+        return None, msg
     except Exception:
         logger.exception("Aura GraphQL probe failed")
-    return None
+        return None, "request failed"
 
 
 def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
@@ -126,23 +134,34 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
     Run GraphQL introspection against the target.
 
     Tries the direct REST endpoint first, then falls back to Aura's
-    executeGraphQL action. Saves the raw schema JSON to output_dir.
+    executeGraphQL action. Always saves a status file. Saves schema on success.
 
     Returns True if introspection succeeded, False otherwise.
     """
-    logger.info("Attempting GraphQL introspection via REST endpoint")
-    schema = _via_rest(client, aura_url)
+    graphql_dir = os.path.join(output_dir, "graphql")
+    os.makedirs(graphql_dir, exist_ok=True)
 
+    logger.info("Attempting GraphQL introspection via REST endpoint")
+    schema, rest_detail = _via_rest(client, aura_url)
+
+    aura_detail: str | None = None
     if schema is None:
         logger.info("REST introspection failed, retrying via Aura executeGraphQL")
-        schema = _via_aura(client)
+        schema, aura_detail = _via_aura(client)
+
+    status = {
+        "available": schema is not None,
+        "rest": rest_detail,
+        "aura": aura_detail,
+    }
+    status_path = os.path.join(graphql_dir, "graphql_introspection_status.json")
+    with open(status_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(status, ensure_ascii=False, indent=2))
 
     if schema is None:
         logger.info("GraphQL introspection is blocked on this target")
         return False
 
-    graphql_dir = os.path.join(output_dir, "graphql")
-    os.makedirs(graphql_dir, exist_ok=True)
     path = os.path.join(graphql_dir, "graphql_schema.json")
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(json.dumps(schema, ensure_ascii=False, indent=2))

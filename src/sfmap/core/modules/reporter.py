@@ -849,71 +849,88 @@ def _section_exposure(output_dir: str) -> str:
 
 
 def _section_graphql_schema(output_dir: str) -> str:
-    schema_path = Path(output_dir) / "graphql" / "graphql_schema.json"
-    if not schema_path.is_file():
-        return ""
+    graphql_dir = Path(output_dir) / "graphql"
+    schema_path = graphql_dir / "graphql_schema.json"
+    status_path = graphql_dir / "graphql_introspection_status.json"
 
-    raw = _load_json(schema_path)
-    if not raw:
-        return ""
+    status: dict = (_load_json(status_path) or {}) if status_path.is_file() else {}
 
-    types_raw = (
-        raw.get("data", {}).get("__schema", {}).get("types")
-        or raw.get("__schema", {}).get("types")
-        or []
-    )
-    object_types = [
-        t
-        for t in types_raw
-        if t.get("kind") == "OBJECT" and not t.get("name", "").startswith("__")
-    ]
-    if not object_types:
-        return ""
+    if schema_path.is_file():
+        raw = _load_json(schema_path)
+        if not raw:
+            return ""
 
-    rows = []
-    for t in sorted(object_types, key=lambda x: x.get("name", "")):
-        name = t.get("name", "")
-        fields = t.get("fields") or []
-        field_names = [f.get("name", "") for f in fields]
-        count = len(field_names)
-        preview = ", ".join(field_names[:10])
-        if count > 10:
-            preview += f", +{count - 10} more"
-        rows.append(
-            [
-                f"<code>{_h(name)}</code>",
-                f'<span class="num">{count}</span>',
-                f'<span class="muted">{_h(preview)}</span>',
-            ]
+        types_raw = (
+            raw.get("data", {}).get("__schema", {}).get("types")
+            or raw.get("__schema", {}).get("types")
+            or []
+        )
+        object_types = [
+            t
+            for t in types_raw
+            if t.get("kind") == "OBJECT" and not t.get("name", "").startswith("__")
+        ]
+        if not object_types:
+            return ""
+
+        rows = []
+        for t in sorted(object_types, key=lambda x: x.get("name", "")):
+            name = t.get("name", "")
+            fields = t.get("fields") or []
+            field_names = [f.get("name", "") for f in fields]
+            count = len(field_names)
+            preview = ", ".join(field_names[:10])
+            if count > 10:
+                preview += f", +{count - 10} more"
+            rows.append(
+                [
+                    f"<code>{_h(name)}</code>",
+                    f'<span class="num">{count}</span>',
+                    f'<span class="muted">{_h(preview)}</span>',
+                ]
+            )
+
+        if "data" not in raw:
+            voyager_payload = {"data": raw}
+        else:
+            voyager_payload = raw
+
+        schema_js = json.dumps(voyager_payload).replace("</", "<\\/")
+
+        copy_btn = (
+            f"<script>var __sfmap_schema__ = {schema_js};</script>"
+            '<button class="copy-btn" onclick="'
+            "navigator.clipboard.writeText(JSON.stringify(__sfmap_schema__,null,2))"
+            ".then(function(){var b=this;b.textContent='Copied!';setTimeout(function(){b.textContent='Copy introspection JSON'},2000)}.bind(this))"
+            ".catch(function(){alert('Clipboard not available')})\">"
+            "Copy introspection JSON</button>"
+            ' <a class="voyager-link" href="https://apis.guru/graphql-voyager/" target="_blank" rel="noopener">'
+            "open GraphQL Voyager</a>"
+            ' <span class="muted">(paste via "Change Schema" in Voyager)</span>'
         )
 
-    # Ensure the schema is in {data: {__schema: ...}} form that Voyager expects
-    if "data" not in raw:
-        voyager_payload = {"data": raw}
-    else:
-        voyager_payload = raw
+        body = (
+            f"<p>{len(object_types)} OBJECT type(s) in the GraphQL introspection schema.</p>"
+            f'<p class="schema-actions">{copy_btn}</p>'
+            + _table(["Type", "Fields", "Field Names"], rows)
+        )
+        return _card("graphql-schema", "GraphQL: Introspection", body)
 
-    # Escape </script> so the JSON is safe inside a <script> block
-    schema_js = json.dumps(voyager_payload).replace("</", "<\\/")
+    if not status:
+        return ""
 
-    copy_btn = (
-        f"<script>var __sfmap_schema__ = {schema_js};</script>"
-        '<button class="copy-btn" onclick="'
-        "navigator.clipboard.writeText(JSON.stringify(__sfmap_schema__,null,2))"
-        ".then(function(){var b=this;b.textContent='Copied!';setTimeout(function(){b.textContent='Copy introspection JSON'},2000)}.bind(this))"
-        ".catch(function(){alert('Clipboard not available')})\">"
-        "Copy introspection JSON</button>"
-        ' <a class="voyager-link" href="https://apis.guru/graphql-voyager/" target="_blank" rel="noopener">'
-        "open GraphQL Voyager</a>"
-        ' <span class="muted">(paste via "Change Schema" in Voyager)</span>'
-    )
+    rest_msg = status.get("rest") or "not tried"
+    aura_msg = status.get("aura")
+
+    rows = [["REST endpoint", _h(rest_msg)]]
+    if aura_msg is not None:
+        rows.append(["Aura executeGraphQL", _h(aura_msg)])
 
     body = (
-        f"<p>{len(object_types)} OBJECT type(s) in the GraphQL introspection schema.</p>"
-        f'<p class="schema-actions">{copy_btn}</p>'
-        + _table(["Type", "Fields", "Field Names"], rows)
+        "<p>Introspection is blocked on this target. Server responses:</p>"
+        + _table(["Path", "Server response"], rows)
     )
-    return _card("graphql-schema", "GraphQL: Schema Types", body)
+    return _card("graphql-schema", "GraphQL: Introspection", body)
 
 
 # ── Report generator ──────────────────────────────────────────────────────────
