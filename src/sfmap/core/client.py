@@ -58,7 +58,8 @@ class AuraClient:
         )
         resp.raise_for_status()
         text = resp.text.lstrip("/*").lstrip()
-        return json.loads(text)
+        obj, _ = json.JSONDecoder().raw_decode(text)
+        return obj
 
     def aura_post(self, message: dict) -> dict:
         token = self._session.token if self._authenticated else "undefined"
