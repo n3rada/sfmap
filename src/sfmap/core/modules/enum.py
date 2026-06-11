@@ -22,6 +22,7 @@ def list_objects(client: AuraClient) -> dict[str, str]:
     Raises on Aura exception or missing data.
     """
     mode = "guest" if client.is_guest else "authenticated"
+    logger.trace(f"getConfigData ({mode})")
     response = client.aura_post(PAYLOAD_GET_CONFIG)
 
     if response.get("exceptionEvent"):
@@ -33,6 +34,7 @@ def list_objects(client: AuraClient) -> dict[str, str]:
 
     return_value = actions[0].get("returnValue", {})
     prefixes: dict = return_value.get("apiNamesToKeyPrefixes", {})
+    logger.trace(f"getConfigData → {len(prefixes)} object(s) in {mode} mode")
     logger.debug(f"Fetched object config in {mode} mode")
     return dict(sorted(prefixes.items()))
 

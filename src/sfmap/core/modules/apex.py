@@ -136,6 +136,7 @@ def probe(client: AuraClient, descriptors: list[str]) -> dict[str, str]:
 
     for i, descriptor in enumerate(descriptors, 1):
         logger.debug(f"[{i}/{len(descriptors)}] {descriptor}")
+        logger.trace(f"Apex probe → {descriptor}")
         try:
             response = client.aura_post(_payload(descriptor))
         except Exception:
@@ -144,16 +145,19 @@ def probe(client: AuraClient, descriptors: list[str]) -> dict[str, str]:
             continue
 
         if response.get("exceptionEvent"):
+            logger.trace(f"Apex probe {descriptor} → exceptionEvent")
             results[descriptor] = "error"
             continue
 
         actions = response.get("actions", [])
         if not actions:
+            logger.trace(f"Apex probe {descriptor} → no actions")
             results[descriptor] = "error"
             continue
 
         state = actions[0].get("state", "")
         msg = _first_error_message(actions[0].get("error", []))
+        logger.trace(f"Apex probe {descriptor} → state={state} msg={msg[:120]}")
 
         if state == "SUCCESS":
             logger.success(f"Callable: {descriptor}")

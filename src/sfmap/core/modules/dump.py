@@ -76,6 +76,7 @@ def get_items(
     """Returns returnValue dict for a single page, or None on failure."""
     mode = "guest" if client.is_guest else "authenticated"
     payload = _payload_get_items(object_name, page_size, page)
+    logger.trace(f"getItems {object_name} page={page} page_size={page_size} mode={mode}")
     try:
         response = client.aura_post(payload)
     except Exception:
@@ -91,7 +92,9 @@ def get_items(
         return None
 
     action = actions[0]
-    if action.get("state") == "ERROR":
+    state = action.get("state")
+    logger.trace(f"getItems {object_name} page={page} → state={state}")
+    if state == "ERROR":
         msg = f"{object_name}: {_extract_error(action.get('error', []))}"
         if client.is_guest or silent:
             logger.debug(msg)
@@ -100,6 +103,9 @@ def get_items(
         return None
 
     return_value = action.get("returnValue", {})
+    total = return_value.get("totalCount", "?")
+    result_count = len(return_value.get("result", []))
+    logger.trace(f"getItems {object_name} page={page} → totalCount={total} results={result_count}")
     if not return_value.get("result"):
         return None
 

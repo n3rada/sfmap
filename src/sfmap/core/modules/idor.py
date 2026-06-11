@@ -122,15 +122,17 @@ def probe_guest(
     with AuraClient(guest_session) as guest_client:
         for i, record_id in enumerate(record_ids, 1):
             logger.debug(f"[{i}/{len(record_ids)}] getRecord {record_id}")
+            logger.trace(f"IDOR getRecord {record_id} (prefix={record_id[:3]})")
             try:
                 payload = dump._payload_get_record(record_id)
                 resp = guest_client.aura_post(payload)
                 actions = resp.get("actions", [])
-                if actions and actions[0].get("state") == "SUCCESS":
+                state = actions[0].get("state") if actions else "no-actions"
+                logger.trace(f"IDOR getRecord {record_id} → state={state}")
+                if actions and state == "SUCCESS":
                     rv = actions[0].get("returnValue", {})
-                    # onLoadErrorMessage-only response = record exists but data is blocked
-                    # (proper sharing rules). Only flag when actual field data is returned.
                     rv_keys = list(rv.keys()) if isinstance(rv, dict) else []
+                    logger.trace(f"IDOR getRecord {record_id} returnValue keys={rv_keys}")
                     if rv_keys == ["onLoadErrorMessage"] or not rv_keys:
                         logger.debug(f"Record {record_id}: exists but data blocked (guest denied)")
                         continue

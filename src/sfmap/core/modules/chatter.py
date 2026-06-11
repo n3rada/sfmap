@@ -39,12 +39,14 @@ def _check_file_upload(client: AuraClient, aura_url: str) -> dict | None:
     endpoint = f"{_base_url(aura_url)}/chatter/handlers/file/body"
 
     try:
+        logger.trace(f"Chatter file upload → POST {endpoint}")
         resp = client._http.post(
             endpoint,
             content=body.encode("utf-8"),
             headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         )
         logger.debug(f"Chatter file/body → HTTP {resp.status_code}")
+        logger.trace(f"Chatter file/body response: {resp.text[:800]}")
         text = resp.text
 
         all_ips = list(dict.fromkeys(_IP_RE.findall(text)))
@@ -98,8 +100,10 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> d
 
     for path in endpoints:
         try:
+            logger.trace(f"Chatter REST probe → GET {base + path}")
             resp = client.get(base + path)
             logger.debug(f"Chatter REST {path} → HTTP {resp.status_code}")
+            logger.trace(f"Chatter REST {path} response: {resp.text[:400]}")
             if resp.status_code != 200:
                 continue
             data = resp.json()

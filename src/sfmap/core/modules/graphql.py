@@ -59,11 +59,13 @@ def _via_rest(client: AuraClient, aura_url: str) -> dict | None:
     """Try standard GraphQL introspection via the direct REST endpoint."""
     url = f"{_base_url(aura_url)}/services/data/{REST_API_VERSION}/graphql"
     try:
+        logger.trace(f"GraphQL REST introspection → POST {url}")
         resp = client._http.post(
             url,
             json={"query": _INTROSPECTION_QUERY, "variables": {}},
             headers={"Content-Type": "application/json"},
         )
+        logger.trace(f"GraphQL REST → HTTP {resp.status_code}: {resp.text[:500]}")
         if resp.status_code == 200:
             data = resp.json()
             if data.get("data") or data.get("errors"):
@@ -92,12 +94,16 @@ def _via_aura(client: AuraClient) -> dict | None:
         }]
     }
     try:
+        logger.trace("GraphQL Aura introspection → aura://RecordUiController/ACTION$executeGraphQL")
         resp = client.aura_post(payload)
         actions = resp.get("actions", [])
         if not actions:
+            logger.trace(f"Aura introspection: no actions in response, keys={list(resp.keys())}")
             return None
         action = actions[0]
-        if action.get("state") == "SUCCESS":
+        state = action.get("state")
+        logger.trace(f"Aura introspection action state={state}")
+        if state == "SUCCESS":
             rv = action.get("returnValue", {})
             logger.info("GraphQL introspection via Aura executeGraphQL succeeded")
             return rv
@@ -210,6 +216,7 @@ def dump_object(
     while True:
         page += 1
         payload = _gql_dump_payload(object_name, fields, first=page_size, after=after)
+        logger.trace(f"GraphQL dump {object_name} page={page} after={after!r}")
         try:
             resp = client.aura_post(payload)
         except Exception:
@@ -218,6 +225,8 @@ def dump_object(
 
         actions = resp.get("actions", [])
         if not actions or actions[0].get("state") != "SUCCESS":
+            state = actions[0].get("state") if actions else "no-actions"
+            logger.trace(f"GraphQL dump {object_name} page={page} → state={state}")
             logger.debug(f"{object_name}: GraphQL dump failed on page {page}")
             break
 
@@ -240,6 +249,7 @@ def dump_object(
         all_nodes.extend(nodes)
 
         page_info = obj_data.get("pageInfo", {})
+        logger.trace(f"GraphQL dump {object_name} page={page} nodes={len(nodes)} total={total} hasNextPage={page_info.get('hasNextPage')}")
         logger.debug(f"{object_name}: page {page}, got {len(nodes)} records (total={total})")
 
         if not page_info.get("hasNextPage"):

@@ -51,6 +51,7 @@ class AuraClient:
             + "&aura.token="
             + token
         )
+        logger.trace(f"Aura POST → {self._session.url}\n{json.dumps(message, indent=2)}")
         resp = self._http.post(
             self._session.url,
             content=body.encode("utf-8"),
@@ -58,6 +59,7 @@ class AuraClient:
         )
         resp.raise_for_status()
         text = resp.text.lstrip("/*").lstrip()
+        logger.trace(f"Aura response HTTP {resp.status_code}: {text[:2000]}")
         obj, _ = json.JSONDecoder().raw_decode(text)
         return obj
 
@@ -66,21 +68,30 @@ class AuraClient:
         return self._post(message, token)
 
     def get(self, url: str, follow_redirects: bool = True) -> "httpx.Response":
-        return self._http.get(url, follow_redirects=follow_redirects)
+        logger.trace(f"GET {url}")
+        resp = self._http.get(url, follow_redirects=follow_redirects)
+        logger.trace(f"GET {url} → HTTP {resp.status_code} ({len(resp.content)} bytes)")
+        return resp
 
     def rest_get(self, url: str) -> "httpx.Response":
         """GET with OAuth Bearer header when a bearer_token is configured."""
         headers = {}
         if self._session.bearer_token:
             headers["Authorization"] = f"Bearer {self._session.bearer_token}"
-        return self._http.get(url, headers=headers)
+        logger.trace(f"REST GET {url}")
+        resp = self._http.get(url, headers=headers)
+        logger.trace(f"REST GET {url} → HTTP {resp.status_code}")
+        return resp
 
     def rest_post(self, url: str, **kwargs) -> "httpx.Response":
         """POST with OAuth Bearer header when a bearer_token is configured."""
         headers = kwargs.pop("headers", {})
         if self._session.bearer_token:
             headers["Authorization"] = f"Bearer {self._session.bearer_token}"
-        return self._http.post(url, headers=headers, **kwargs)
+        logger.trace(f"REST POST {url}")
+        resp = self._http.post(url, headers=headers, **kwargs)
+        logger.trace(f"REST POST {url} → HTTP {resp.status_code}")
+        return resp
 
     @property
     def has_bearer(self) -> bool:

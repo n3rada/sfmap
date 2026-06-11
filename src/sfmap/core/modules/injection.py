@@ -97,9 +97,11 @@ def probe_getitems(
 
     for payload in SOQL_PAYLOADS:
         try:
+            logger.trace(f"SOQL inject {object_name} where={payload!r}")
             resp = client.aura_post(_get_items_payload(object_name, where=payload))
             injected_count = _count(resp)
             state = _state(resp)
+            logger.trace(f"SOQL inject {object_name} → count={injected_count} state={state}")
 
             if injected_count is not None and injected_count > baseline_count:
                 finding = {
