@@ -6,6 +6,7 @@ import json
 import os
 import re
 import sys
+from typing import Callable
 from pathlib import Path
 
 # Third-party imports
@@ -545,6 +546,87 @@ def cmd_list_views(args: argparse.Namespace) -> int:
     return 1 if urls else 0
 
 
+def cmd_assess(args: argparse.Namespace) -> int:
+    """Run a full assessment: all phases in dependency order, skipping non-fatal failures."""
+    import time
+
+    session = _build_session(args)
+    out_dir = _resolve_output_dir(args, session)
+
+    phases: list[tuple[str, "Callable[[argparse.Namespace], int]"]] = [
+        ("surface exposure",        cmd_exposure),
+        ("aura network",            cmd_network_access),
+        ("aura bootstrap",          cmd_bootstrap),
+        ("aura objects",            cmd_list_objects),
+        ("aura dump",               cmd_dump),
+        ("aura crud",               cmd_crud_probe),
+        ("aura inject",             cmd_soql_inject),
+        ("aura views",              cmd_list_views),
+        ("aura flow",               cmd_flow_fuzz),
+        ("aura controllers",        cmd_apex_controllers),
+        ("aura follow",             cmd_aura_follow),
+        ("aura idor",               cmd_idor_probe),
+        ("rest graphql introspect", cmd_graphql_introspect),
+        ("rest graphql query",      cmd_graphql_query),
+        ("rest graphql dump",       cmd_graphql_dump),
+        ("rest static",             cmd_static_resources),
+        ("rest apexrest",           cmd_apexrest_fuzz),
+        ("rest chatter",            cmd_chatter),
+        ("rest soql",               cmd_soql_query),
+        ("rest sosl",               cmd_sosl_query),
+        ("rest content enum",       cmd_content_enum),
+        ("rest tooling",            cmd_tooling_query),
+    ]
+
+    results: list[tuple[str, str, float]] = []
+
+    for name, fn in phases:
+        phase_args = argparse.Namespace(**vars(args))
+        phase_args.output = out_dir
+        # Defaults for optional per-command attributes
+        for attr, val in [
+            ("objects", []), ("display", False), ("custom_fields", False),
+            ("type", "custom"), ("wordlist", None), ("method", "invoke"),
+            ("apex_hits", []), ("object", None), ("fields", None),
+            ("record_id", None), ("soql", None), ("sosl", None),
+            ("bearer", args.bearer if hasattr(args, "bearer") else None),
+        ]:
+            if not hasattr(phase_args, attr):
+                setattr(phase_args, attr, val)
+
+        t0 = time.monotonic()
+        try:
+            fn(phase_args)
+            elapsed = time.monotonic() - t0
+            results.append((name, "ok", elapsed))
+            logger.info(f"assess: {name} done ({elapsed:.1f}s)")
+        except SystemExit:
+            elapsed = time.monotonic() - t0
+            results.append((name, "fatal", elapsed))
+            logger.error(f"assess: {name} raised SystemExit, stopping assessment")
+            break
+        except Exception:
+            elapsed = time.monotonic() - t0
+            results.append((name, "error", elapsed))
+            logger.exception(f"assess: {name} crashed, continuing")
+
+    # Report
+    report_args = argparse.Namespace(output=out_dir)
+    try:
+        cmd_report(report_args)
+    except Exception:
+        logger.exception("assess: report generation failed")
+
+    logger.info("=" * 60)
+    for name, status, elapsed in results:
+        icon = "[ok]" if status == "ok" else "[!!]"
+        logger.info(f"  {icon}  {name:<30} {elapsed:>6.1f}s")
+    logger.info("=" * 60)
+
+    failed = sum(1 for _, s, _ in results if s != "ok")
+    return 1 if failed else 0
+
+
 def cmd_report(args: argparse.Namespace) -> int:
     if not args.output:
         logger.error("--output DIR is required")
@@ -854,6 +936,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_chatter)
     p_chatter.set_defaults(func=cmd_chatter)
+
+    # -- assess --------------------------------------------------------------
+    p_assess = surfaces.add_parser(
+        "assess",
+        help="Run full assessment: all phases in dependency order",
+    )
+    _add_common_args(p_assess)
+    p_assess.set_defaults(func=cmd_assess)
 
     # -- report --------------------------------------------------------------
     p_report = surfaces.add_parser(
