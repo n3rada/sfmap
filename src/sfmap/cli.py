@@ -546,14 +546,42 @@ def cmd_list_views(args: argparse.Namespace) -> int:
     return 1 if urls else 0
 
 
+_PHASE_SENTINELS: dict[str, str] = {
+    "surface exposure":        "exposure_summary.json",
+    "aura network":            "network_config.json",
+    "aura bootstrap":          "csp_trusted_sites.json",
+    "aura objects":            "../config_data.json",
+    "aura dump":               "ContentDocument__page1.json",
+    "aura crud":               "crud_probe.json",
+    "aura inject":             "injection_findings.json",
+    "aura views":              "listviews.json",
+    "aura flow":               "flow_hits.json",
+    "aura controllers":        "apex_descriptors.json",
+    "aura follow":             "relatedlists_sentinel.json",
+    "aura idor":               "idor_findings.json",
+    "rest graphql introspect": "graphql/graphql_introspection_status.json",
+    "rest graphql query":      "graphql/graphql_User.json",
+    "rest graphql dump":       "graphql_dump_User.json",
+    "rest static":             "staticresource_summary.json",
+    "rest apexrest":           "apexrest_hits.json",
+    "rest chatter":            "chatter/chatter_summary.json",
+    "rest soql":               "soql/soql_summary.json",
+    "rest sosl":               "sosl/sosl_summary.json",
+    "rest content enum":       "ContentDocument__page1.json",
+    "rest tooling":            "tooling",
+}
+
+
 def cmd_assess(args: argparse.Namespace) -> int:
-    """Run a full assessment: all phases in dependency order, skipping non-fatal failures."""
+    """Run a full assessment: all phases in dependency order, skipping already-done phases."""
     import time
+    from pathlib import Path as _Path
 
     session = _build_session(args)
     out_dir = _resolve_output_dir(args, session)
+    out_path = _Path(out_dir)
 
-    phases: list[tuple[str, "Callable[[argparse.Namespace], int]"]] = [
+    phases: list[tuple[str, Callable[[argparse.Namespace], int]]] = [
         ("surface exposure",        cmd_exposure),
         ("aura network",            cmd_network_access),
         ("aura bootstrap",          cmd_bootstrap),
@@ -578,19 +606,25 @@ def cmd_assess(args: argparse.Namespace) -> int:
         ("rest tooling",            cmd_tooling_query),
     ]
 
+    _defaults = [
+        ("objects", []), ("display", False), ("custom_fields", False),
+        ("type", "custom"), ("wordlist", None), ("method", "invoke"),
+        ("apex_hits", []), ("object", None), ("fields", None),
+        ("record_id", None), ("soql", None), ("sosl", None),
+    ]
+
     results: list[tuple[str, str, float]] = []
 
     for name, fn in phases:
+        sentinel = _PHASE_SENTINELS.get(name)
+        if sentinel and (out_path / sentinel).exists():
+            logger.info(f"assess: {name} already done, skipping")
+            results.append((name, "skip", 0.0))
+            continue
+
         phase_args = argparse.Namespace(**vars(args))
         phase_args.output = out_dir
-        # Defaults for optional per-command attributes
-        for attr, val in [
-            ("objects", []), ("display", False), ("custom_fields", False),
-            ("type", "custom"), ("wordlist", None), ("method", "invoke"),
-            ("apex_hits", []), ("object", None), ("fields", None),
-            ("record_id", None), ("soql", None), ("sosl", None),
-            ("bearer", args.bearer if hasattr(args, "bearer") else None),
-        ]:
+        for attr, val in _defaults:
             if not hasattr(phase_args, attr):
                 setattr(phase_args, attr, val)
 
@@ -599,31 +633,33 @@ def cmd_assess(args: argparse.Namespace) -> int:
             fn(phase_args)
             elapsed = time.monotonic() - t0
             results.append((name, "ok", elapsed))
-            logger.info(f"assess: {name} done ({elapsed:.1f}s)")
         except SystemExit:
             elapsed = time.monotonic() - t0
             results.append((name, "fatal", elapsed))
-            logger.error(f"assess: {name} raised SystemExit, stopping assessment")
+            logger.error(f"assess: {name} aborted session, stopping")
             break
         except Exception:
             elapsed = time.monotonic() - t0
             results.append((name, "error", elapsed))
-            logger.exception(f"assess: {name} crashed, continuing")
+            logger.exception(f"assess: {name} failed, continuing")
 
-    # Report
     report_args = argparse.Namespace(output=out_dir)
     try:
         cmd_report(report_args)
     except Exception:
         logger.exception("assess: report generation failed")
 
-    logger.info("=" * 60)
+    logger.info("─" * 55)
     for name, status, elapsed in results:
-        icon = "[ok]" if status == "ok" else "[!!]"
-        logger.info(f"  {icon}  {name:<30} {elapsed:>6.1f}s")
-    logger.info("=" * 60)
+        if status == "ok":
+            logger.success(f"  {name:<32} {elapsed:>6.1f}s")
+        elif status == "skip":
+            logger.info(f"  {name:<32}  skipped")
+        else:
+            logger.error(f"  {name:<32} {elapsed:>6.1f}s")
+    logger.info("─" * 55)
 
-    failed = sum(1 for _, s, _ in results if s != "ok")
+    failed = sum(1 for _, s, _ in results if s == "error")
     return 1 if failed else 0
 
 
