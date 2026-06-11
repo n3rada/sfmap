@@ -811,34 +811,6 @@ def _section_exposure(output_dir: str) -> str:
         parts.append("<h3>API Surface</h3>")
         parts.append(_table(["Endpoint / Feature", "Status"], api_rows))
 
-    # ── Security headers ───────────────────────────────────────
-    sec = data.get("security_headers") or {}
-    if isinstance(sec, dict):
-        url_checked = sec.get("url_checked", "")
-        present = sec.get("present", {})
-        missing = sec.get("missing", [])
-        weaknesses = sec.get("weaknesses", [])
-
-        parts.append(
-            f'<h3>Security Headers<span class="muted" style="font-weight:400;margin-left:.5rem">checked against <code>{_h(url_checked)}</code></span></h3>'
-        )
-
-        if present:
-            hdr_rows = [
-                [f"<code>{_h(k)}</code>", _h(str(v)[:200])]
-                for k, v in sorted(present.items())
-            ]
-            parts.append('<p style="margin-bottom:.3rem">Present:</p>')
-            parts.append(_table(["Header", "Value"], hdr_rows))
-
-        if missing:
-            lis = "".join(f"<li><code>{_h(h)}</code></li>" for h in missing)
-            parts.append(f'<p style="margin-top:.6rem">Missing: <ul>{lis}</ul></p>')
-
-        if weaknesses:
-            lis = "".join(f"<li>{_h(w)}</li>" for w in weaknesses)
-            parts.append(f'<p style="margin-top:.4rem">Weaknesses: <ul>{lis}</ul></p>')
-
     # ── Visualforce pages ──────────────────────────────────────
     vf = data.get("visualforce") or {}
     if isinstance(vf, dict):
