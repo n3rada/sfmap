@@ -165,6 +165,53 @@ def _enumerate_users(client: AuraClient, aura_url: str, out: OutputWriter) -> li
     return users
 
 
+def _download_content_versions(
+    client: AuraClient,
+    aura_url: str,
+    out: OutputWriter,
+    version_ids: list[tuple[str, str, str]],
+) -> list[dict]:
+    """
+    Download files via /sfc/servlet.shepherd/version/download/<id>.
+    version_ids: list of (id, title, file_extension).
+    Returns list of download result dicts.
+    """
+    base = _base_url(aura_url)
+    results: list[dict] = []
+
+    for vid, title, ext in version_ids:
+        url = f"{base}/sfc/servlet.shepherd/version/download/{vid}"
+        try:
+            resp = client.get(url)
+            if resp.status_code != 200:
+                logger.debug(f"ContentVersion {vid} ({title}): HTTP {resp.status_code}")
+                continue
+            safe_title = re.sub(r'[^\w\-]', '_', title)[:60]
+            filename = f"content_{safe_title}_{vid}.{ext or 'bin'}"
+            path = out.save_bytes(filename, resp.content)
+            ct = resp.headers.get("content-type", "")
+            logger.success(
+                f"Downloaded: {title} ({len(resp.content):,} bytes, {ct.split(';')[0]}) → {filename}"
+            )
+            results.append({
+                "id": vid,
+                "title": title,
+                "file_extension": ext,
+                "size": len(resp.content),
+                "content_type": ct,
+                "saved_as": filename,
+            })
+        except Exception:
+            logger.exception(f"ContentVersion download failed: {vid}")
+
+    if results:
+        logger.success(f"Content download: {len(results)}/{len(version_ids)} file(s) retrieved")
+    else:
+        logger.info("Content download: no files accessible")
+
+    return results
+
+
 def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
     chatter_out = out.subdir("chatter")
 
@@ -173,11 +220,35 @@ def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
     rest_endpoints = _enumerate_via_rest(client, aura_url, chatter_out)
     users = _enumerate_users(client, aura_url, chatter_out)
 
+    # Pull ContentVersion IDs from a prior GraphQL dump if available
+    import json as _json
+    version_ids: list[tuple[str, str, str]] = []
+    gql_dump = out / "graphql_dump_ContentVersion.json"
+    if gql_dump.exists():
+        try:
+            records = _json.loads(gql_dump.read_text())
+            for r in records:
+                vid = r.get("Id")
+                title_f = r.get("Title")
+                ext_f = r.get("FileExtension")
+                title = title_f.get("value") if isinstance(title_f, dict) else (title_f or "file")
+                ext = ext_f.get("value") if isinstance(ext_f, dict) else (ext_f or "bin")
+                if vid:
+                    version_ids.append((vid, title, ext))
+            logger.info(f"Content download: {len(version_ids)} ContentVersion ID(s) from GraphQL dump")
+        except Exception:
+            logger.exception("Failed to read GraphQL ContentVersion dump")
+    else:
+        logger.debug("Content download: no graphql_dump_ContentVersion.json found, skipping")
+
+    downloads = _download_content_versions(client, aura_url, chatter_out, version_ids)
+
     summary = {
         "file_upload": file_upload_finding,
         "aura_objects": aura_objects,
         "rest_endpoints": rest_endpoints,
         "users": users,
+        "downloads": downloads,
     }
 
     path = chatter_out.save("chatter_summary.json", summary)
@@ -187,6 +258,7 @@ def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
         + len(aura_objects)
         + len(rest_endpoints)
         + len(users)
+        + len(downloads)
     )
     if findings_count:
         logger.success(f"Chatter: {findings_count} finding(s) saved to {path}")
