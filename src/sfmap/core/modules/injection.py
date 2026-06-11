@@ -84,7 +84,11 @@ def probe_getitems(
     """
     findings: list[dict] = []
 
-    baseline_resp = client.aura_post(_get_items_payload(object_name))
+    try:
+        baseline_resp = client.aura_post(_get_items_payload(object_name))
+    except Exception:
+        logger.exception(f"{object_name} injection probe error")
+        return findings
     baseline_count = _count(baseline_resp)
     if baseline_count is None:
         logger.debug(f"{object_name}: baseline failed, skipping injection probe")
