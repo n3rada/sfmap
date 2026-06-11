@@ -92,6 +92,8 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, out: OutputWriter) ->
     base = _base_url(aura_url)
     endpoints = [
         f"/services/data/{REST_API_VERSION}/chatter/feeds/news/me/feed-elements",
+        f"/services/data/{REST_API_VERSION}/chatter/feeds/company/me/feed-elements",
+        f"/services/data/{REST_API_VERSION}/chatter/feeds/filter/me/001/feed-elements",
         f"/services/data/{REST_API_VERSION}/chatter/feed-items",
         f"/services/data/{REST_API_VERSION}/chatter/users/me",
     ]
@@ -117,17 +119,65 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, out: OutputWriter) ->
     return found
 
 
+def _enumerate_users(client: AuraClient, aura_url: str, out: OutputWriter) -> list[dict]:
+    """Enumerate Chatter users via REST, extracting names, usernames and photos."""
+    base = _base_url(aura_url)
+    users: list[dict] = []
+    url: str | None = f"{base}/services/data/{REST_API_VERSION}/chatter/users?pageSize=100"
+
+    while url:
+        try:
+            resp = client.get(url)
+            logger.debug(f"Chatter users → HTTP {resp.status_code}")
+            if resp.status_code != 200:
+                logger.info(f"Chatter user enumeration not accessible (HTTP {resp.status_code})")
+                break
+            data = resp.json()
+        except Exception:
+            logger.exception("Chatter user enumeration failed")
+            break
+
+        for u in data.get("users", []):
+            entry = {
+                "id": u.get("id"),
+                "username": u.get("username"),
+                "name": u.get("name"),
+                "email": u.get("email"),
+                "title": u.get("title"),
+                "company_name": u.get("companyName"),
+                "photo_url": (u.get("photo") or {}).get("largePhotoUrl"),
+            }
+            users.append(entry)
+
+        next_page = data.get("nextPageUrl")
+        url = next_page if next_page else None
+
+    if users:
+        out.save("chatter_users.json", users)
+        logger.success(f"Chatter users: {len(users)} user(s) enumerated")
+        for u in users[:5]:
+            logger.info(f"  {u['name']} ({u['username']}) — {u['email'] or 'no email'}")
+        if len(users) > 5:
+            logger.info(f"  ... and {len(users) - 5} more (see chatter_users.json)")
+    else:
+        logger.info("Chatter users: not accessible or no users returned")
+
+    return users
+
+
 def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
     chatter_out = out.subdir("chatter")
 
     file_upload_finding = _check_file_upload(client, aura_url)
     aura_objects = _enumerate_via_aura(client, chatter_out)
     rest_endpoints = _enumerate_via_rest(client, aura_url, chatter_out)
+    users = _enumerate_users(client, aura_url, chatter_out)
 
     summary = {
         "file_upload": file_upload_finding,
         "aura_objects": aura_objects,
         "rest_endpoints": rest_endpoints,
+        "users": users,
     }
 
     path = chatter_out.save("chatter_summary.json", summary)
@@ -136,6 +186,7 @@ def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
         (1 if file_upload_finding else 0)
         + len(aura_objects)
         + len(rest_endpoints)
+        + len(users)
     )
     if findings_count:
         logger.success(f"Chatter: {findings_count} finding(s) saved to {path}")
