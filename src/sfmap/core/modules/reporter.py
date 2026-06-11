@@ -119,13 +119,20 @@ def _is_identity_dir(path: Path) -> bool:
     )
 
 
-def _read_display_name(identity_dir: Path) -> str:
-    p = identity_dir / "display_name.txt"
+def _read_identity(identity_dir: Path) -> tuple[str, str]:
+    """Return (display_name, identity_type) from identity.json or directory name."""
+    p = identity_dir / "identity.json"
     if p.is_file():
-        name = p.read_text(encoding="utf-8").strip()
-        if name:
-            return name
-    return identity_dir.name
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            display = data.get("display_name") or data.get("label") or identity_dir.name
+            kind = data.get("type", "guest" if identity_dir.name == "guest" else "authenticated")
+            return display, kind
+        except Exception:
+            pass
+    if identity_dir.name == "guest":
+        return "guest", "guest"
+    return identity_dir.name, "authenticated"
 
 
 def _card(section_id: str, title: str, body: str) -> str:
@@ -1020,6 +1027,91 @@ def _section_graphql_schema(output_dir: str) -> str:
 # ── Report generator ──────────────────────────────────────────────────────────
 
 
+def _stats_row(output_dir: str) -> str:
+    base = Path(output_dir)
+    stats: list[tuple[str, str]] = []
+
+    # Accessible objects (graphql_dump_* + *__page1)
+    obj_names: set[str] = set()
+    total_recs = 0
+    for p in base.glob("graphql_dump_*.json"):
+        obj_names.add(p.stem.removeprefix("graphql_dump_"))
+        data = _load_json(p)
+        if isinstance(data, list):
+            total_recs += len(data)
+    for p in base.glob("*__page1.json"):
+        if m := re.match(r"^(.+)__page1\.json$", p.name):
+            obj = m.group(1)
+            if obj not in obj_names:
+                obj_names.add(obj)
+                data = _load_json(p)
+                if isinstance(data, dict):
+                    total_recs += data.get("totalCount", 0) or 0
+    if obj_names:
+        stats.append(("Objects", str(len(obj_names))))
+        stats.append(("Records", f"{total_recs:,}"))
+
+    # IDOR findings
+    idor_p = base / "idor_findings.json"
+    if idor_p.is_file():
+        d = _load_json(idor_p)
+        findings = d if isinstance(d, list) else (d or {}).get("findings", [])
+        if findings:
+            stats.append(("IDOR", str(len(findings))))
+
+    # CRUD writeable objects
+    for crud_p in [base / "crud_probe.json", base / "crud_findings.json"]:
+        if crud_p.is_file():
+            d = _load_json(crud_p)
+            if isinstance(d, dict):
+                count = sum(1 for v in d.values() if isinstance(v, dict) and v.get("create"))
+            elif isinstance(d, list):
+                count = len(d)
+            else:
+                count = 0
+            if count:
+                stats.append(("Writable", str(count)))
+            break
+
+    # Apex REST endpoints
+    apex_p = base / "apexrest_hits.json"
+    if apex_p.is_file():
+        d = _load_json(apex_p)
+        hits = d if isinstance(d, list) else (d or {}).get("hits", [])
+        if hits:
+            unique = len({h.get("name", "") for h in hits if isinstance(h, dict)})
+            stats.append(("ApexREST", str(unique)))
+
+    # Flow hits
+    flow_p = base / "flow_hits.json"
+    if flow_p.is_file():
+        d = _load_json(flow_p)
+        hits = d if isinstance(d, list) else (d or {}).get("hits", [])
+        if hits:
+            stats.append(("Flows", str(len(hits))))
+
+    # Chatter users
+    chatter_p = base / "chatter" / "chatter_summary.json"
+    if chatter_p.is_file():
+        d = _load_json(chatter_p)
+        if isinstance(d, dict):
+            users = d.get("users") or []
+            if users:
+                stats.append(("Users", str(len(users))))
+
+    if not stats:
+        return ""
+
+    chips = "".join(
+        f'<div class="stat-chip">'
+        f'<div class="stat-chip-label">{_h(label)}</div>'
+        f'<div class="stat-chip-value">{_h(value)}</div>'
+        f"</div>"
+        for label, value in stats
+    )
+    return f'<div class="stats-row">{chips}</div>'
+
+
 def _build_tab_panel(
     identity_dir: Path,
     display_name: str,
@@ -1055,11 +1147,12 @@ def _build_tab_panel(
     if not active_sections:
         logger.warning(f"No finding files found in {identity_dir}")
 
+    stats = _stats_row(od)
     cards = "\n".join(body for _, body in active_sections)
     active_class = " active" if is_active else ""
     return (
         f'<div id="{_h(tab_id)}" class="tab-panel{active_class}">'
-        f'<div class="layout">{cards}</div>'
+        f'<div class="layout">{stats}{cards}</div>'
         f"</div>"
     )
 
@@ -1101,11 +1194,16 @@ def generate(output_dir: str, target: str | None = None) -> str:
     for i, id_dir in enumerate(identity_dirs):
         tab_id = f"tab-{i}"
         is_active = i == 0
-        display_name = _read_display_name(id_dir)
+        display_name, identity_type = _read_identity(id_dir)
         active_class = " active" if is_active else ""
+        badge_class = "guest" if identity_type == "guest" else "user"
+        badge_label = "guest" if identity_type == "guest" else "user"
+        badge_html = (
+            f'<span class="tab-identity-badge {badge_class}">{badge_label}</span>'
+        )
         tab_btns.append(
             f'<button class="tab-btn{active_class}" data-target="{_h(tab_id)}">'
-            f"{_h(display_name)}</button>"
+            f"{_h(display_name)}{badge_html}</button>"
         )
         tab_panels.append(
             _build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir, target)
@@ -1119,35 +1217,36 @@ def generate(output_dir: str, target: str | None = None) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sfmap: {_h(target)}</title>
+<title>sfmap — {_h(target)}</title>
 <style>{css}</style>
 </head>
 <body>
 
-<header class="page-header">
-  <div class="page-header-inner">
-    <div class="header-left">
-      <span class="badge-sfmap">sfmap</span>
-      <span class="header-title">Security Assessment Report</span>
+<div class="top-bar">
+  <header class="page-header">
+    <div class="page-header-inner">
+      <div class="header-left">
+        <span class="badge-sfmap">sfmap</span>
+        <span class="header-title">Security Assessment Report</span>
+      </div>
+      <div class="header-right">
+        <div class="meta-block">
+          <span class="meta-label">Target</span>
+          <span class="meta-value">{_h(target)}</span>
+        </div>
+        <div class="meta-block">
+          <span class="meta-label">Date</span>
+          <span class="meta-value">{date_str}</span>
+        </div>
+        <div class="meta-block">
+          <span class="meta-label">Identities</span>
+          <span class="meta-value">{len(identity_dirs)}</span>
+        </div>
+      </div>
     </div>
-    <div class="header-right">
-      <div class="meta-block">
-        <span class="meta-label">Target</span>
-        <span class="meta-value">{_h(target)}</span>
-      </div>
-      <div class="meta-block">
-        <span class="meta-label">Date</span>
-        <span class="meta-value">{date_str}</span>
-      </div>
-      <div class="meta-block">
-        <span class="meta-label">Identities</span>
-        <span class="meta-value">{len(identity_dirs)}</span>
-      </div>
-    </div>
-  </div>
-</header>
-
-{tab_bar}
+  </header>
+  {tab_bar}
+</div>
 
 {panels_html}
 
