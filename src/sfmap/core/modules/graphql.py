@@ -103,10 +103,13 @@ def _via_aura(client: AuraClient) -> dict | None:
             return rv
         errors = action.get("error", [])
         try:
-            msg = errors[0]["event"]["attributes"]["values"]["message"]
+            msg = errors[0]["event"]["attributes"]["values"]["error"]["message"]
         except (IndexError, KeyError):
-            msg = str(errors)
-        logger.debug(f"Aura GraphQL state={action.get('state')}: {msg}")
+            try:
+                msg = errors[0]["event"]["attributes"]["values"]["message"]
+            except (IndexError, KeyError):
+                msg = str(errors)
+        logger.info(f"Aura GraphQL: {msg}")
     except Exception:
         logger.exception("Aura GraphQL probe failed")
     return None
@@ -129,10 +132,7 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
         schema = _via_aura(client)
 
     if schema is None:
-        logger.info(
-            "GraphQL introspection is blocked (endpoint may still be usable, "
-            "use 'surface exposure' to confirm, then probe manually via Burp)"
-        )
+        logger.info("GraphQL introspection is blocked on this target")
         return False
 
     graphql_dir = os.path.join(output_dir, "graphql")
