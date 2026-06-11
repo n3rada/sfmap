@@ -4,6 +4,7 @@
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -35,6 +36,9 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
         else:
             with AuraClient(session) as tmp:
                 label, display = identity_mod.resolve_with_display(tmp)
+            if re.search(r"guest", label, re.IGNORECASE):
+                label = "guest"
+                display = None
     output_dir = os.path.join(base, label)
     if display and display != label:
         identity_mod.save_display_name(output_dir, display)
