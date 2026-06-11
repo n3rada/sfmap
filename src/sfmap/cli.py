@@ -12,7 +12,7 @@ from loguru import logger
 
 # Local imports
 from . import __version__
-from .core.client import AuraClient
+from .core.client import AuraClient, AuraSessionExpired
 from .core.session import Session
 from .core.modules import apex, apexrest, bootstrap, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, listviews, network, relatedlist, reporter, soql, staticresource, tooling
 from .core.utils import autocontext, identity as identity_mod
@@ -146,13 +146,27 @@ def _build_session(args: argparse.Namespace) -> Session:
     else:
         token = token_raw
 
-    return Session(
+    session = Session(
         url=url,
         context=context,
         token=token,
         cookie=cookie,
         bearer_token=bearer,
     )
+
+    if not session.is_guest:
+        try:
+            with AuraClient(session) as client:
+                identity_mod.verify(client)
+            logger.info("Auth: session credentials accepted")
+        except AuraSessionExpired as exc:
+            logger.error(f"Auth: {exc}")
+            raise SystemExit(1) from exc
+        except Exception:
+            logger.exception("Auth: credential check request failed")
+            raise SystemExit(1)
+
+    return session
 
 
 def cmd_list_objects(args: argparse.Namespace) -> int:

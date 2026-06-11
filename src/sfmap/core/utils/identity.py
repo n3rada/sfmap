@@ -119,6 +119,16 @@ def resolve_with_display(client: AuraClient) -> tuple[str, str]:
     return "authenticated", "authenticated"
 
 
+def verify(client: AuraClient) -> bool:
+    """Make a lightweight Aura call to confirm credentials are accepted.
+    Raises AuraSessionExpired if the token is rejected by the server.
+    Returns True if the session is valid, False if identity could not be resolved
+    but credentials were not actively rejected.
+    """
+    result = _via_aura_user(client)
+    return result is not None
+
+
 def save_display_name(output_dir: str, display_name: str) -> None:
     """Write display_name.txt into the identity directory."""
     from pathlib import Path
