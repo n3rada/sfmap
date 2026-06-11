@@ -1,8 +1,8 @@
 # sfmap
 
-Salesforce surface-centric security assessment toolkit targeting Experience Cloud (community portal) deployments.
+Chart every accessible surface of a Salesforce Experience Cloud deployment: enumerate objects, probe access controls, extract records, and detect misconfigurations — from a session or as a guest.
 
-## Installation
+## 📦 Installation
 
 ```bash
 uv tool install git+https://github.com/n3rada/sfmap.git
@@ -22,7 +22,7 @@ uvx --from git+https://github.com/n3rada/sfmap.git sfmap --help
 
 ---
 
-## Credentials
+## 🔑 Credentials
 
 Salesforce exposes two surfaces with different credential requirements.
 
@@ -44,11 +44,14 @@ When those files are present in the working directory, no flags are needed:
 sfmap target.my.site.com scan
 ```
 
-**Burp Suite export:** drop a Burp XML export (Save items) or a raw HTTP request as `burp.txt` in the working directory. sfmap parses it automatically and uses it in preference over `cookies.txt` and `token.txt`.
+> [!TIP]
+> Drop a Burp Suite XML export or raw HTTP request as `burp.txt` in the working directory. sfmap parses it automatically and uses it in preference over `cookies.txt` and `token.txt`.
 
-**Token lifetime:** session-based, not timestamp-based. A token from an active browser session covers a full assessment. If requests return `Invalid token`, capture a fresh one.
+> [!NOTE]
+> `aura.token` expiry is session-based, not timestamp-based. A token from an active browser session covers a full assessment. If requests return `Invalid token`, capture a fresh one.
 
-**Unauthenticated mode:** if no credentials are found, every command runs as a guest automatically.
+> [!NOTE]
+> If no credentials are found, every command runs as an unauthenticated guest automatically.
 
 ### REST API surface
 
@@ -63,9 +66,9 @@ sfmap target.my.site.com --bearer @bearer.txt rest soql
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-Run the full assessment scan (all modules, then generates the HTML report):
+Run the full assessment (all modules, then generates the HTML report):
 
 ```bash
 sfmap target.my.site.com scan
@@ -91,7 +94,7 @@ sfmap --proxy target.my.site.com scan
 
 ---
 
-## Surfaces and Commands
+## 🗺️ Surfaces and Commands
 
 ```
 sfmap URL aura    objects | dump | record | info | crud | inject | related |
@@ -106,11 +109,12 @@ sfmap URL scan    [--skip MODULE ...]
 sfmap     report  -o DIR
 ```
 
-Run any command with `--help` for its options.
+> [!TIP]
+> Run any command with `--help` for its options and flags.
 
 ---
 
-## Output
+## 📂 Output
 
 All output goes to a directory derived from the target URL (override with `-o`):
 
@@ -136,9 +140,9 @@ salesforce_{host}_{path}/
 
 ---
 
-## aura.context
+## 🧩 aura.context
 
-Required for every Aura request. Re-capture when every request returns `exceptionEvent: true` (Salesforce pushes framework builds 3x per year).
+Required for every Aura request. Salesforce pushes framework builds three times a year — re-capture when every request returns `exceptionEvent: true`.
 
 ```json
 {
@@ -152,6 +156,6 @@ Required for every Aura request. Re-capture when every request returns `exceptio
 
 ---
 
-## Disclaimer
+## ⚠️ Disclaimer
 
 For authorized security assessments, bug bounty programs, and penetration testing engagements only.
