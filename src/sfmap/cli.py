@@ -162,9 +162,6 @@ def _build_session(args: argparse.Namespace) -> Session:
         except AuraSessionExpired as exc:
             logger.error(f"Auth: {exc}")
             raise SystemExit(1) from exc
-        except Exception:
-            logger.exception("Auth: credential check request failed")
-            raise SystemExit(1)
 
     return session
 

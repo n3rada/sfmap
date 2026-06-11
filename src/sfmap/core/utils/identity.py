@@ -119,14 +119,32 @@ def resolve_with_display(client: AuraClient) -> tuple[str, str]:
     return "authenticated", "authenticated"
 
 
-def verify(client: AuraClient) -> bool:
-    """Make a lightweight Aura call to confirm credentials are accepted.
-    Raises AuraSessionExpired if the token is rejected by the server.
-    Returns True if the session is valid, False if identity could not be resolved
-    but credentials were not actively rejected.
+def verify(client: AuraClient) -> None:
+    """Make a minimal Aura call to confirm the session token is accepted.
+    Raises AuraSessionExpired if the server rejects the token.
+    Any non-auth error in the response (permission denied, object not found, etc.)
+    is ignored: the token was accepted, which is all we need to know.
     """
-    result = _via_aura_user(client)
-    return result is not None
+    payload = {
+        "actions": [{
+            "id": "auth;a",
+            "descriptor": (
+                "serviceComponent://ui.force.components.controllers.lists"
+                ".selectableListDataProvider.SelectableListDataProviderController/ACTION$getItems"
+            ),
+            "callingDescriptor": "UNKNOWN",
+            "params": {
+                "entityNameOrId": "User",
+                "layoutType": "FULL",
+                "pageSize": 1,
+                "currentPage": 0,
+                "useTimeout": False,
+                "getCount": False,
+                "enableRowActions": False,
+            },
+        }]
+    }
+    client.aura_post(payload)
 
 
 def save_display_name(output_dir: str, display_name: str) -> None:
