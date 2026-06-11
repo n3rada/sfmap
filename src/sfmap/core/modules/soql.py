@@ -9,6 +9,84 @@ from loguru import logger
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
 
+_SOSL_PROBE_TERMS = [
+    "admin",
+    "user",
+    "password",
+    "token",
+    "secret",
+    "key",
+    "api",
+]
+
+_SOSL_RETURNING = (
+    "User(Id, Name, Username, Email) "
+    "Account(Id, Name) "
+    "Contact(Id, Name, Email) "
+    "Lead(Id, Name, Email) "
+    "Case(Id, Subject)"
+)
+
+
+def run_sosl(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
+    """
+    Run SOSL FIND queries via REST /services/data/{v}/search.
+    Returns {search_term: total_results} for each term that returned data.
+    """
+    from urllib.parse import quote_plus as _qp
+
+    base = _base_url(aura_url)
+    endpoint = f"{base}/services/data/{REST_API_VERSION}/search"
+
+    test_q = f"FIND {{admin}} IN ALL FIELDS RETURNING {_SOSL_RETURNING} LIMIT 5"
+    try:
+        resp = client.rest_get(f"{endpoint}?q={_qp(test_q)}")
+    except Exception:
+        logger.exception("REST SOSL probe failed")
+        return {}
+
+    if resp.status_code not in (200, 201):
+        hint = " (pass --bearer for OAuth access)" if not client.has_bearer else ""
+        logger.info(f"REST SOSL endpoint not accessible (HTTP {resp.status_code}){hint}")
+        return {}
+
+    logger.info("REST SOSL endpoint accessible, running probe queries")
+    os.makedirs(output_dir, exist_ok=True)
+
+    results: dict[str, int] = {}
+
+    for term in _SOSL_PROBE_TERMS:
+        query = f"FIND {{{term}}} IN ALL FIELDS RETURNING {_SOSL_RETURNING} LIMIT 50"
+        try:
+            resp = client.rest_get(f"{endpoint}?q={_qp(query)}")
+            if resp.status_code != 200:
+                logger.debug(f"SOSL {term!r}: HTTP {resp.status_code}")
+                continue
+            data = resp.json()
+            records = data.get("searchRecords", [])
+            if records:
+                results[term] = len(records)
+                logger.success(f"SOSL {term!r}: {len(records)} record(s)")
+                path = os.path.join(output_dir, f"sosl_{term}.json")
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(json.dumps(data, ensure_ascii=False, indent=2))
+            else:
+                logger.debug(f"SOSL {term!r}: 0 records")
+        except Exception:
+            logger.exception(f"SOSL query error for {term!r}")
+
+    summary_path = os.path.join(output_dir, "sosl_summary.json")
+    with open(summary_path, "w", encoding="utf-8") as fh:
+        fh.write(json.dumps(results, ensure_ascii=False, indent=2))
+
+    if results:
+        logger.success(f"REST SOSL: hits on {len(results)} term(s), see {output_dir}/sosl_*.json")
+    else:
+        logger.info("REST SOSL: endpoint accessible but no records returned")
+
+    return results
+
+
 _PROBE_QUERIES: list[tuple[str, str]] = [
     ("User", "SELECT Id, Username, Email, Name, IsActive FROM User LIMIT 50"),
     ("Profile", "SELECT Id, Name, PermissionsApiEnabled, PermissionsModifyAllData FROM Profile LIMIT 50"),

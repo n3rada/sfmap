@@ -28,20 +28,20 @@ Salesforce exposes two surfaces with different credential requirements.
 
 ### Aura surface (community portal)
 
-Every request requires three values captured from a single authenticated browser request:
+Authenticated requests need a session token and cookie. `ctx.json` (the Aura framework context) is auto-extracted if absent.
 
-| File | CLI flag | Value |
-|---|---|---|
-| `ctx.json` | `-C` | `aura.context` JSON from the POST body |
-| `token.txt` | `-T` | `aura.token` JWT from the POST body |
-| `cookies.txt` | `--cookie` | Raw `Cookie:` header |
+| File | CLI flag | Value | Required |
+|---|---|---|---|
+| `ctx.json` | `-C` | `aura.context` JSON | auto-extracted if missing |
+| `token.txt` | `-T` | `aura.token` JWT from the POST body | yes (authenticated) |
+| `cookies.txt` | `--cookie` | Raw `Cookie:` header | yes (authenticated) |
 
-Capture from DevTools: Network tab, filter by `aura`, click any POST to `/s/sfsites/aura`, copy the request body fields and Cookie header.
+Capture `token.txt` and `cookies.txt` from DevTools: Network tab, filter by `aura`, click any POST to `/s/sfsites/aura`, copy the `aura.token` field and the `Cookie:` header.
 
-When those files are present in the working directory, no flags are needed:
+When credential files are present in the working directory, no flags are needed:
 
 ```bash
-sfmap target.my.site.com scan
+sfmap target.my.site.com surface exposure
 ```
 
 > [!TIP]
@@ -66,34 +66,6 @@ sfmap target.my.site.com --bearer @bearer.txt rest soql
 
 ---
 
-## 🚀 Quick Start
-
-Run the full assessment (all modules, then generates the HTML report):
-
-```bash
-sfmap target.my.site.com scan
-```
-
-Skip specific modules:
-
-```bash
-sfmap target.my.site.com scan --skip idor graphql-dump
-```
-
-Generate a report from an existing output directory without re-running:
-
-```bash
-sfmap report -o salesforce_target.my.site.com_s_sfsites_aura
-```
-
-Route traffic through Burp:
-
-```bash
-sfmap --proxy target.my.site.com scan
-```
-
----
-
 ## 🗺️ Surfaces and Commands
 
 ```
@@ -102,15 +74,90 @@ sfmap URL aura    objects | dump | record | info | crud | inject | related |
                   bootstrap | views
 sfmap URL rest    graphql introspect | query | dump
                   content enum | download | distribution
-                  static | apexrest | soql | tooling | chatter
+                  static | apexrest | soql | sosl | tooling | chatter
 sfmap URL surface exposure
 sfmap URL files   download ID
-sfmap URL scan    [--skip MODULE ...]
 sfmap     report  -o DIR
 ```
 
 > [!TIP]
 > Run any command with `--help` for its options and flags.
+
+---
+
+## 🚀 Assessment Runbook
+
+Replace `TARGET` with your target domain throughout.
+
+**Run each phase twice:**
+
+1. **Authenticated** — with `token.txt`/`cookies.txt` (or `burp.txt`) present. Output lands in `salesforce_<TARGET>/<username>/`.
+2. **Guest** — no credential files present. Output lands in `salesforce_<TARGET>/guest/`. The report then shows both tabs side by side.
+
+`ctx.json` is optional: if absent, sfmap auto-extracts the Aura context from the target and saves it for subsequent runs.
+
+Route all traffic through Burp with `--proxy` appended to any command.
+
+### Phase 1: Surface Reconnaissance
+
+```bash
+sfmap TARGET surface exposure
+sfmap TARGET rest graphql introspect
+sfmap TARGET rest static
+sfmap TARGET rest apexrest
+sfmap TARGET rest chatter
+sfmap TARGET aura network
+sfmap TARGET aura bootstrap
+```
+
+### Phase 2: Object Enumeration
+
+```bash
+sfmap TARGET aura objects
+```
+
+### Phase 3: Object-Level Enumeration
+
+```bash
+sfmap TARGET aura dump
+sfmap TARGET aura crud
+sfmap TARGET aura inject
+sfmap TARGET aura views
+sfmap TARGET rest graphql query
+sfmap TARGET rest soql
+sfmap TARGET rest sosl
+sfmap TARGET aura flow
+sfmap TARGET aura controllers
+```
+
+### Phase 4: Post-Dump Enumeration
+
+```bash
+sfmap TARGET rest graphql dump
+sfmap TARGET aura follow
+sfmap TARGET rest content enum
+```
+
+### Phase 5: IDOR Probe
+
+```bash
+sfmap TARGET aura idor
+```
+
+Requires a prior `aura dump` in the same output directory to collect record IDs.
+
+### Phase 6: Content Download (optional)
+
+```bash
+sfmap TARGET rest content download
+sfmap TARGET rest content distribution
+```
+
+### Report
+
+```bash
+sfmap report -o salesforce_TARGET_s_sfsites_aura
+```
 
 ---
 

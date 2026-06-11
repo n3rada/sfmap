@@ -250,6 +250,7 @@ def check_extra_endpoints(client: AuraClient, aura_url: str) -> dict:
         "oauth_token": f"{base}/services/oauth2/token",
         "cometd": f"{base}/cometd/59.0/",
         "tooling_api": f"{base}/services/data/{REST_API_VERSION}/tooling/",
+        "execute_anonymous": f"{base}/services/data/{REST_API_VERSION}/tooling/executeAnonymous",
         "bulk_api": f"{base}/services/data/{REST_API_VERSION}/jobs/ingest",
         "metadata_wsdl": f"{base}/services/Soap/m/{REST_API_VERSION}",
     }

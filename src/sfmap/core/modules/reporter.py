@@ -91,12 +91,31 @@ def _clean_target(raw: str) -> str:
     return re.sub(r"_s(?:_sfsites)?(?:_aura)?$", "", raw.removeprefix("salesforce_"))
 
 
+_IDENTITY_MARKERS: tuple[str, ...] = (
+    "exposure_summary.json",
+    "network_config.json",
+    "staticresource_summary.json",
+    "apexrest_hits.json",
+    "flow_hits.json",
+    "crud_probe.json",
+    "crud_findings.json",
+    "idor_findings.json",
+    "apex_hits.json",
+    "listviews.json",
+    "csp_trusted_sites.json",
+    "injection_findings.json",
+)
+
+
 def _is_identity_dir(path: Path) -> bool:
     return (
         any(path.glob("graphql_dump_*.json"))
         or any(path.glob("*__page1.json"))
-        or (path / "exposure_summary.json").is_file()
         or (path / "graphql").is_dir()
+        or (path / "chatter").is_dir()
+        or (path / "soql").is_dir()
+        or (path / "sosl").is_dir()
+        or any((path / m).is_file() for m in _IDENTITY_MARKERS)
     )
 
 
@@ -801,6 +820,22 @@ def _section_apex(output_dir: str) -> str:
     return _card("apexrest", "Apex Endpoints", "\n".join(parts))
 
 
+def _section_csp(output_dir: str) -> str:
+    p = Path(output_dir) / "csp_trusted_sites.json"
+    if not p.is_file():
+        return ""
+    data = _load_json(p)
+    if not data or not isinstance(data, list):
+        return ""
+    rows = [[f'<a href="{_h(s)}" target="_blank" rel="noopener noreferrer"><code>{_h(s)}</code></a>'] for s in data]
+    body = (
+        f"<p>{len(data)} external origin(s) listed in <code>getConfigData.cspTrustedSites</code>. "
+        "Investigate these for subdomain takeover, CDN bypass, or open redirect vectors.</p>"
+        + _table(["Trusted Origin"], rows)
+    )
+    return _card("csp", "CSP Trusted Sites", body)
+
+
 def _section_exposure(output_dir: str) -> str:
     p = Path(output_dir) / "exposure_summary.json"
     if not p.is_file():
@@ -1007,6 +1042,7 @@ def _build_tab_panel(
         ("aura-dump", _section_aura_dump(od, rel)),
         ("listviews", _section_listviews(od)),
         ("exposure", _section_exposure(od)),
+        ("csp", _section_csp(od)),
         ("graphql-query", _section_graphql_query(od, rel)),
         ("graphql-schema", _section_graphql_schema(od)),
         ("flow", _section_flow(od)),
@@ -1075,7 +1111,7 @@ def generate(output_dir: str, target: str | None = None) -> str:
             _build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir, target)
         )
 
-    tab_bar = '<div class="tab-bar">' + "".join(tab_btns) + "</div>"
+    tab_bar = '<div class="tab-bar"><div class="tab-bar-inner">' + "".join(tab_btns) + "</div></div>"
     panels_html = "\n".join(tab_panels)
 
     page = f"""<!DOCTYPE html>
