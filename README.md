@@ -1,6 +1,6 @@
 # sfmap
 
-Chart every accessible surface of a Salesforce Experience Cloud deployment: enumerate objects, probe access controls, extract records, and detect misconfigurations — from a session or as a guest.
+Chart every accessible surface of a Salesforce Experience Cloud deployment: enumerate objects, probe access controls, extract records, and detect misconfigurations. Works from an authenticated session or as a guest.
 
 ## 📦 Installation
 
@@ -33,10 +33,12 @@ Authenticated requests need a session token and cookie. `ctx.json` (the Aura fra
 | File | CLI flag | Value | Required |
 |---|---|---|---|
 | `ctx.json` | `-C` | `aura.context` JSON | auto-extracted if missing |
-| `token.txt` | `-T` | `aura.token` JWT from the POST body | yes (authenticated) |
+| `token.txt` | `-T` | `aura.token` JWT from the POST body | optional |
 | `cookies.txt` | `--cookie` | Raw `Cookie:` header | yes (authenticated) |
 
-Capture `token.txt` and `cookies.txt` from DevTools: Network tab, filter by `aura`, click any POST to `/s/sfsites/aura`, copy the `aura.token` field and the `Cookie:` header.
+The **session cookie** is what authenticates a Salesforce session. The `aura.token` is a CSRF token only; Salesforce issues one even to unauthenticated visitors. A run with no cookie (regardless of token) is treated as guest and output goes to `guest/`.
+
+Capture from DevTools: Network tab, filter by `aura`, click any POST to `/s/sfsites/aura`, copy the `Cookie:` header (for `cookies.txt`) and the `aura.token` field (for `token.txt`).
 
 When credential files are present in the working directory, no flags are needed:
 
@@ -91,8 +93,8 @@ Replace `TARGET` with your target domain throughout.
 
 **Run each phase twice:**
 
-1. **Authenticated** — with `token.txt`/`cookies.txt` (or `burp.txt`) present. Output lands in `salesforce_<TARGET>/<username>/`.
-2. **Guest** — no credential files present. Output lands in `salesforce_<TARGET>/guest/`. The report then shows both tabs side by side.
+1. **Authenticated**: with `token.txt`/`cookies.txt` (or `burp.txt`) present. Output lands in `salesforce_<TARGET>/<username>/`.
+2. **Guest**: no credential files present. Output lands in `salesforce_<TARGET>/guest/`. The report then shows both tabs side by side.
 
 `ctx.json` is optional: if absent, sfmap auto-extracts the Aura context from the target and saves it for subsequent runs.
 
@@ -189,7 +191,7 @@ salesforce_{host}_{path}/
 
 ## 🧩 aura.context
 
-Required for every Aura request. Salesforce pushes framework builds three times a year — re-capture when every request returns `exceptionEvent: true`.
+Required for every Aura request. Salesforce pushes framework builds three times a year; re-capture when every request returns `exceptionEvent: true`.
 
 ```json
 {

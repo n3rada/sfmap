@@ -16,7 +16,11 @@ class Session:
 
     @property
     def is_guest(self) -> bool:
-        return self.guest_mode or (self.token == "undefined" and not self.cookie)
+        # A session cookie is what authenticates a Salesforce session.
+        # The aura.token is only a CSRF token — Salesforce issues one even to
+        # unauthenticated visitors. Without a cookie (and without an OAuth
+        # bearer token for REST-only flows), the session is effectively guest.
+        return self.guest_mode or (not self.cookie and not self.bearer_token)
 
     @property
     def context_str(self) -> str:
