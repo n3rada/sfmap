@@ -709,11 +709,44 @@ def _section_apex(output_dir: str) -> str:
             (data if isinstance(data, list) else data.get("hits", [])) if data else []
         )
         if hits:
-            lis = "".join(f"<li><code>{_h(str(h))}</code></li>" for h in hits)
-            parts.append(f"<h3>ApexREST Endpoints ({len(hits)})</h3>")
+            # Group by endpoint name: {name: {method: status}}
+            grouped: dict[str, dict[str, int]] = {}
+            for h in hits:
+                if not isinstance(h, dict):
+                    continue
+                name = h.get("name", "")
+                method = h.get("method", "")
+                status = h.get("status", 0)
+                grouped.setdefault(name, {})[method] = status
+
+            methods = sorted({m for v in grouped.values() for m in v})
+            headers = ["Endpoint"] + methods + ["Status"]
+
+            def _status_cell(code: int) -> str:
+                if code == 200:
+                    color = "#16a34a"
+                elif code in (401, 403):
+                    color = "#d97706"
+                elif code == 404:
+                    color = "#6b7280"
+                else:
+                    color = "#64748b"
+                return f'<span style="color:{color};font-weight:600">{code}</span>'
+
+            rows = []
+            for name, method_map in sorted(grouped.items()):
+                path_cell = f'<code>/services/apexrest/{_h(name)}</code>'
+                method_cells = [_status_cell(method_map.get(m, 0)) if m in method_map else "" for m in methods]
+                statuses = sorted(set(method_map.values()))
+                status_summary = ", ".join(str(s) for s in statuses)
+                rows.append([path_cell] + method_cells + [status_summary])
+
+            unique_endpoints = len(grouped)
+            parts.append(f"<h3>ApexREST Endpoints ({unique_endpoints})</h3>")
             parts.append(
-                f"<p>{len(hits)} endpoint(s) reachable at <code>/services/apexrest/</code>.</p><ul>{lis}</ul>"
+                f"<p>{unique_endpoints} endpoint(s) responded at <code>/services/apexrest/</code>.</p>"
             )
+            parts.append(_table(headers, rows))
 
     # Apex ACTION controllers (discovered + probed)
     p_hits = base / "apex_hits.json"
