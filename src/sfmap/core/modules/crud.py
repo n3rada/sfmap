@@ -1,12 +1,9 @@
-# Built-in imports
-import json
-import os
-
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 _PROBE_MARKER = "sfmap_probe_do_not_use"
 
@@ -100,7 +97,7 @@ def probe_object(client: AuraClient, object_name: str) -> dict:
 def probe(
     client: AuraClient,
     objects: dict[str, str],
-    output_dir: str,
+    out: OutputWriter,
 ) -> dict[str, dict]:
     """
     Probe create/delete access for each object in *objects*.
@@ -122,10 +119,7 @@ def probe(
     else:
         logger.info("No CREATE access found on any probed object.")
 
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "crud_probe.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(findings, ensure_ascii=False, indent=2))
+    path = out.save("crud_probe.json", findings)
     logger.info(f"CRUD probe results saved → {path}")
 
     return findings

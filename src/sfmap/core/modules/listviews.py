@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from urllib.parse import urlparse
 
 # Third-party imports
@@ -8,6 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 
 def _chunked_post(client: AuraClient, actions: list[dict], chunk_size: int = 100) -> list[dict]:
@@ -35,7 +34,7 @@ def _app_base(aura_url: str) -> str:
     return f"{p.scheme}://{p.netloc}{path.rstrip('/')}"
 
 
-def sweep(client: AuraClient, objects: list[str], output_dir: str) -> list[str]:
+def sweep(client: AuraClient, objects: list[str], out: OutputWriter) -> list[str]:
     """
     Enumerate which objects have accessible UI list views in the community.
 
@@ -132,14 +131,7 @@ def sweep(client: AuraClient, objects: list[str], output_dir: str) -> list[str]:
         logger.info("List views: no accessible record lists found")
         return []
 
-    os.makedirs(output_dir, exist_ok=True)
-    result = {
-        "accessible_urls": accessible_urls,
-        "objects": sorted(seen_objects),
-    }
-    path = os.path.join(output_dir, "listviews.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(result, ensure_ascii=False, indent=2))
+    path = out.save("listviews.json", {"accessible_urls": accessible_urls, "objects": sorted(seen_objects)})
     logger.info(f"List views saved to {path}")
 
     return accessible_urls

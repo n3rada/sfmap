@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from urllib.parse import quote_plus, urlparse
 
 # Third-party imports
@@ -8,6 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
+from ..utils.storage import OutputWriter
 
 _SOSL_PROBE_TERMS = [
     "admin",
@@ -28,7 +27,7 @@ _SOSL_RETURNING = (
 )
 
 
-def run_sosl(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
+def run_sosl(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
     """
     Run SOSL FIND queries via REST /services/data/{v}/search.
     Returns {search_term: total_results} for each term that returned data.
@@ -51,8 +50,6 @@ def run_sosl(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, in
         return {}
 
     logger.info("REST SOSL endpoint accessible, running probe queries")
-    os.makedirs(output_dir, exist_ok=True)
-
     results: dict[str, int] = {}
 
     for term in _SOSL_PROBE_TERMS:
@@ -67,20 +64,16 @@ def run_sosl(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, in
             if records:
                 results[term] = len(records)
                 logger.success(f"SOSL {term!r}: {len(records)} record(s)")
-                path = os.path.join(output_dir, f"sosl_{term}.json")
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(data, ensure_ascii=False, indent=2))
+                out.save(f"sosl_{term}.json", data)
             else:
                 logger.debug(f"SOSL {term!r}: 0 records")
         except Exception:
             logger.exception(f"SOSL query error for {term!r}")
 
-    summary_path = os.path.join(output_dir, "sosl_summary.json")
-    with open(summary_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(results, ensure_ascii=False, indent=2))
+    out.save("sosl_summary.json", results)
 
     if results:
-        logger.success(f"REST SOSL: hits on {len(results)} term(s), see {output_dir}/sosl_*.json")
+        logger.success(f"REST SOSL: hits on {len(results)} term(s), see {out}/sosl_*.json")
     else:
         logger.info("REST SOSL: endpoint accessible but no records returned")
 
@@ -108,7 +101,7 @@ def _base_url(aura_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
-def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
+def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
     """
     Run SOQL queries via the REST /services/data/{v}/query endpoint.
     If the endpoint is inaccessible returns an empty dict.
@@ -130,8 +123,6 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
         return {}
 
     logger.info("REST SOQL endpoint accessible, running probe queries")
-    os.makedirs(output_dir, exist_ok=True)
-
     results: dict[str, int] = {}
 
     for obj_name, query in _PROBE_QUERIES:
@@ -147,24 +138,20 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
             if total:
                 results[obj_name] = total
                 logger.success(f"SOQL {obj_name}: {total} record(s) accessible via REST")
-                path = os.path.join(output_dir, f"soql_{obj_name}.json")
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(data, ensure_ascii=False, indent=2))
+                out.save(f"soql_{obj_name}.json", data)
             else:
                 logger.debug(f"SOQL {obj_name}: 0 records")
 
         except Exception:
             logger.exception(f"SOQL query error for {obj_name}")
 
-    summary_path = os.path.join(output_dir, "soql_summary.json")
-    with open(summary_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(results, ensure_ascii=False, indent=2))
+    out.save("soql_summary.json", results)
 
     if results:
         total_records = sum(results.values())
         logger.success(
             f"REST SOQL: {total_records} record(s) across {len(results)} object(s), "
-            f"see {output_dir}/soql_*.json"
+            f"see {out}/soql_*.json"
         )
     else:
         logger.info("REST SOQL: endpoint accessible but no records returned")

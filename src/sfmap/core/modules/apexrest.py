@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from importlib.resources import files as resource_files
 from urllib.parse import urlparse
 
@@ -9,6 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 _METHODS = ("GET", "POST")
 
@@ -35,7 +34,7 @@ def _load_wordlist(custom_path: str | None) -> list[str]:
 def fuzz(
     client: AuraClient,
     aura_url: str,
-    output_dir: str,
+    out: OutputWriter,
     wordlist_path: str | None = None,
     methods: tuple[str, ...] = _METHODS,
 ) -> list[dict]:
@@ -87,10 +86,7 @@ def fuzz(
                 logger.exception(f"ApexREST probe error {method} {name}")
 
     if hits:
-        os.makedirs(output_dir, exist_ok=True)
-        path = os.path.join(output_dir, "apexrest_hits.json")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(hits, ensure_ascii=False, indent=2))
+        out.save("apexrest_hits.json", hits)
 
         accessible = [h for h in hits if h["status"] == 200]
         if accessible:

@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 import re
 import uuid
 from urllib.parse import urlparse
@@ -10,6 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
+from ..utils.storage import OutputWriter
 from . import dump
 
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
@@ -73,7 +72,7 @@ def _check_file_upload(client: AuraClient, aura_url: str) -> dict | None:
         return None
 
 
-def _enumerate_via_aura(client: AuraClient, output_dir: str) -> dict[str, int]:
+def _enumerate_via_aura(client: AuraClient, out: OutputWriter) -> dict[str, int]:
     """Dump FeedItem, FeedComment and FeedAttachment via Aura getItems."""
     found: dict[str, int] = {}
     for obj in ("FeedItem", "FeedComment", "FeedAttachment"):
@@ -84,11 +83,11 @@ def _enumerate_via_aura(client: AuraClient, output_dir: str) -> dict[str, int]:
         total = rv.get("totalCount", len(rv.get("result", [])))
         found[obj] = total
         logger.success(f"Chatter {obj}: {total} record(s) visible")
-        dump.write_page(output_dir, obj, 1, rv)
+        dump.write_page(out, obj, 1, rv)
     return found
 
 
-def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
+def _enumerate_via_rest(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
     """Probe Chatter REST feed endpoints."""
     base = _base_url(aura_url)
     endpoints = [
@@ -111,22 +110,19 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, output_dir: str) -> d
             found[path] = count
             logger.success(f"Chatter REST {path}: {count} item(s) accessible")
             safe_name = path.strip("/").replace("/", "_")
-            out_path = os.path.join(output_dir, f"rest_{safe_name}.json")
-            with open(out_path, "w", encoding="utf-8") as fh:
-                fh.write(json.dumps(data, ensure_ascii=False, indent=2))
+            out.save(f"rest_{safe_name}.json", data)
         except Exception:
             logger.exception(f"Chatter REST probe error for {path}")
 
     return found
 
 
-def run(client: AuraClient, aura_url: str, output_dir: str) -> dict:
-    chatter_dir = os.path.join(output_dir, "chatter")
-    os.makedirs(chatter_dir, exist_ok=True)
+def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
+    chatter_out = out.subdir("chatter")
 
     file_upload_finding = _check_file_upload(client, aura_url)
-    aura_objects = _enumerate_via_aura(client, chatter_dir)
-    rest_endpoints = _enumerate_via_rest(client, aura_url, chatter_dir)
+    aura_objects = _enumerate_via_aura(client, chatter_out)
+    rest_endpoints = _enumerate_via_rest(client, aura_url, chatter_out)
 
     summary = {
         "file_upload": file_upload_finding,
@@ -134,9 +130,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict:
         "rest_endpoints": rest_endpoints,
     }
 
-    path = os.path.join(chatter_dir, "chatter_summary.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(summary, ensure_ascii=False, indent=2))
+    path = chatter_out.save("chatter_summary.json", summary)
 
     findings_count = (
         (1 if file_upload_finding else 0)

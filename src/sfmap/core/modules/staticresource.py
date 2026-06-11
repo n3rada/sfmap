@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from importlib.resources import files as resource_files
 from urllib.parse import urlparse
 
@@ -9,6 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 from . import dump
 
 
@@ -56,7 +55,7 @@ def _fetch(client: AuraClient, base: str, name: str) -> tuple[int, bytes]:
 def fuzz(
     client: AuraClient,
     aura_url: str,
-    output_dir: str,
+    out: OutputWriter,
     wordlist_path: str | None = None,
 ) -> list[dict]:
     base = _base_url(aura_url)
@@ -71,28 +70,21 @@ def fuzz(
         names = _load_wordlist(wordlist_path)
         logger.info(f"StaticResource: {len(names)} name(s) to probe")
 
-    os.makedirs(output_dir, exist_ok=True)
-
     for name in names:
-        sc, content = _fetch(client, base, name)
+        sc, data = _fetch(client, base, name)
         if sc != 200:
             logger.debug(f"StaticResource {name}: not accessible")
             continue
 
         safe = name.replace("/", "_").replace("\\", "_")
-        out_path = os.path.join(output_dir, f"staticresource_{safe}.bin")
-        with open(out_path, "wb") as fh:
-            fh.write(content)
+        bin_path = out.save_bytes(f"staticresource_{safe}.bin", data)
+        logger.success(f"StaticResource accessible: /resource/{name} ({len(data):,} bytes) → {bin_path}")
+        hits.append({"name": name, "url": f"{base}/resource/{name}", "size": len(data)})
 
-        logger.success(f"StaticResource accessible: /resource/{name} ({len(content):,} bytes) → {out_path}")
-        hits.append({"name": name, "url": f"{base}/resource/{name}", "size": len(content)})
-
-    summary_path = os.path.join(output_dir, "staticresource_summary.json")
-    with open(summary_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(hits, ensure_ascii=False, indent=2))
+    out.save("staticresource_summary.json", hits)
 
     if hits:
-        logger.success(f"StaticResource: {len(hits)} resource(s) downloaded to {output_dir}")
+        logger.success(f"StaticResource: {len(hits)} resource(s) downloaded to {out}")
     else:
         logger.info("StaticResource: no accessible resources found")
 

@@ -1,6 +1,5 @@
 # Built-in imports
 import json
-import os
 import re
 from pathlib import Path
 from urllib.parse import urlparse
@@ -10,6 +9,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 1000
@@ -152,7 +152,7 @@ def get_object_info(client: AuraClient, object_name: str) -> dict | None:
 def dump_object(
     client: AuraClient,
     object_name: str,
-    output_dir: str,
+    out: OutputWriter,
     full: bool = False,
     display: bool = False,
     custom_fields: bool = False,
@@ -175,7 +175,7 @@ def dump_object(
         if rv is None:
             break
 
-        write_page(output_dir, object_name, page, rv)
+        write_page(out, object_name, page, rv)
         wrote_any = True
 
         if custom_fields and not object_name.endswith("__c"):
@@ -191,17 +191,14 @@ def dump_object(
             break
 
     if custom_fields and found_fields:
-        write_custom_fields_summary(output_dir, object_name, found_fields)
+        write_custom_fields_summary(out, object_name, found_fields)
         logger.info(f"{object_name}: {len(found_fields)} custom field(s) found")
 
     return wrote_any
 
 
-def write_page(output_dir: str, object_name: str, page: int, value: dict) -> None:
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, f"{object_name}__page{page}.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(value, ensure_ascii=False, indent=2))
+def write_page(out: OutputWriter, object_name: str, page: int, value: dict) -> None:
+    path = out.save(f"{object_name}__page{page}.json", value)
     logger.debug(f"Saved {path}")
 
 
@@ -227,25 +224,22 @@ def identify_custom_fields(return_value: dict) -> set[str]:
     return custom_fields
 
 
-def write_custom_fields_summary(output_dir: str, object_name: str, fields: set[str]) -> None:
+def write_custom_fields_summary(out: OutputWriter, object_name: str, fields: set[str]) -> None:
     """Append custom field names for object_name to custom_fields_summary.txt."""
-    path = os.path.join(output_dir, "custom_fields_summary.txt")
-    exists = os.path.exists(path)
-    os.makedirs(output_dir, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as fh:
-        if not exists:
-            fh.write("Custom Fields Summary\n")
-            fh.write("===================\n\n")
-        fh.write(f"Object: {object_name}\n")
-        fh.write("Custom Fields:\n")
-        for field in sorted(fields):
-            fh.write(f"  - {field}\n")
-        fh.write("\n")
-    logger.debug(f"Custom fields for {object_name} appended to {path}")
+    filename = "custom_fields_summary.txt"
+    header = not (out.path / filename).exists()
+    lines: list[str] = []
+    if header:
+        lines += ["Custom Fields Summary\n", "===================\n\n"]
+    lines += [f"Object: {object_name}\n", "Custom Fields:\n"]
+    lines += [f"  - {field}\n" for field in sorted(fields)]
+    lines.append("\n")
+    out.append_text(filename, "".join(lines))
+    logger.debug(f"Custom fields for {object_name} appended to {out / filename}")
 
 
 def download_file(
-    client: "AuraClient", sf_id: str, aura_url: str, output_dir: str
+    client: "AuraClient", sf_id: str, aura_url: str, out: OutputWriter
 ) -> Path | None:
     """
     Download a Salesforce file by ContentDocument (069) or ContentVersion (068) ID.
@@ -281,8 +275,6 @@ def download_file(
     if not filename:
         filename = sf_id
 
-    os.makedirs(output_dir, exist_ok=True)
-    dest = Path(output_dir) / filename
-    dest.write_bytes(resp.content)
+    dest = out.save_bytes(filename, resp.content)
     logger.info(f"Saved {dest} ({len(resp.content):,} bytes)")
     return dest

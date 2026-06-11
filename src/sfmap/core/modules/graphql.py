@@ -1,6 +1,5 @@
 # Built-in imports
 import json
-import os
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -9,6 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
+from ..utils.storage import OutputWriter
 
 _INTROSPECTION_QUERY = """
 {
@@ -129,7 +129,7 @@ def _via_aura(client: AuraClient) -> tuple[dict | None, str]:
         return None, "request failed"
 
 
-def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
+def introspect(client: AuraClient, aura_url: str, out: OutputWriter) -> bool:
     """
     Run GraphQL introspection against the target.
 
@@ -138,8 +138,7 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
 
     Returns True if introspection succeeded, False otherwise.
     """
-    graphql_dir = os.path.join(output_dir, "graphql")
-    os.makedirs(graphql_dir, exist_ok=True)
+    gql_out = out.subdir("graphql")
 
     logger.info("Attempting GraphQL introspection via REST endpoint")
     schema, rest_detail = _via_rest(client, aura_url)
@@ -149,23 +148,18 @@ def introspect(client: AuraClient, aura_url: str, output_dir: str) -> bool:
         logger.info("REST introspection failed, retrying via Aura executeGraphQL")
         schema, aura_detail = _via_aura(client)
 
-    status = {
+    gql_out.save("graphql_introspection_status.json", {
         "available": schema is not None,
         "rest": rest_detail,
         "aura": aura_detail,
-    }
-    status_path = os.path.join(graphql_dir, "graphql_introspection_status.json")
-    with open(status_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(status, ensure_ascii=False, indent=2))
+    })
 
     if schema is None:
         logger.info("GraphQL introspection is blocked on this target")
         return False
 
-    path = os.path.join(graphql_dir, "graphql_schema.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(schema, ensure_ascii=False, indent=2))
-    logger.info(f"GraphQL schema saved → {graphql_dir}/")
+    gql_out.save("graphql_schema.json", schema)
+    logger.info(f"GraphQL schema saved → {gql_out}/")
 
     _summarise(schema)
     return True
@@ -220,7 +214,7 @@ def dump_object(
     client: AuraClient,
     object_name: str,
     fields: list[str],
-    output_dir: str,
+    out: OutputWriter,
     page_size: int = 200,
 ) -> list[dict]:
     """
@@ -277,10 +271,7 @@ def dump_object(
 
     if all_nodes:
         logger.success(f"{object_name}: {len(all_nodes)} record(s) accessible via GraphQL dump")
-        os.makedirs(output_dir, exist_ok=True)
-        path = os.path.join(output_dir, f"graphql_dump_{object_name}.json")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(all_nodes, ensure_ascii=False, indent=2))
+        path = out.save(f"graphql_dump_{object_name}.json", all_nodes)
         logger.info(f"Saved to {path}")
     else:
         logger.info(f"{object_name}: no records returned")
@@ -300,7 +291,7 @@ _FALLBACK_FIELDS = ["Name", "CreatedDate", "LastModifiedDate", "Description", "S
 
 def autodump(
     client: AuraClient,
-    output_dir: str,
+    out: OutputWriter,
     object_names: list[str] | None = None,
     max_fields: int = 30,
 ) -> dict[str, int]:
@@ -315,7 +306,7 @@ def autodump(
     if not object_names:
         all_objects = _enum.list_objects(client)
         logger.info(f"GraphQL autodump: scanning {len(all_objects)} object(s) for accessible records")
-        counts = query_objects(client, list(all_objects.keys()), output_dir)
+        counts = query_objects(client, list(all_objects.keys()), out)
         object_names = [name for name, count in counts.items() if count > 0]
 
     if not object_names:
@@ -342,7 +333,7 @@ def autodump(
             continue
 
         logger.info(f"GraphQL autodump {obj_name}: querying {len(fields)} field(s)")
-        nodes = dump_object(client, obj_name, fields, output_dir)
+        nodes = dump_object(client, obj_name, fields, out)
         if nodes:
             results[obj_name] = len(nodes)
 
@@ -384,15 +375,14 @@ def _gql_query_payload(object_name: str, first: int = 200, after: str | None = N
 def query_objects(
     client: AuraClient,
     object_names: list[str],
-    output_dir: str,
+    out: OutputWriter,
     page_size: int = 200,
 ) -> dict[str, int]:
     """
     Query each object via GraphQL uiapi and record how many records are
     returned. Saves raw responses per object. Returns {name: total_count}.
     """
-    graphql_dir = os.path.join(output_dir, "graphql")
-    os.makedirs(graphql_dir, exist_ok=True)
+    gql_out = out.subdir("graphql")
     results: dict[str, int] = {}
 
     for i, obj_name in enumerate(object_names, 1):
@@ -422,9 +412,7 @@ def query_objects(
 
             if total:
                 logger.success(f"GraphQL {obj_name}: {total} record(s)")
-                path = os.path.join(graphql_dir, f"graphql_{obj_name}.json")
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(rv, ensure_ascii=False, indent=2))
+                gql_out.save(f"graphql_{obj_name}.json", rv)
             else:
                 logger.debug(f"{obj_name}: 0 records via GraphQL")
 

@@ -1,12 +1,9 @@
-# Built-in imports
-import json
-import os
-
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 # SOQL injection payloads, ordered from least to most aggressive.
 # Detection strategy: if the injected query returns more records than the
@@ -169,7 +166,7 @@ def run(
     client: AuraClient,
     objects: dict[str, str],
     apex_hits: list[str],
-    output_dir: str,
+    out: OutputWriter,
 ) -> dict:
     """
     Run all injection probes: getItems where-clause and Apex method params.
@@ -190,10 +187,7 @@ def run(
     else:
         logger.info("No SOQL injection indicators found.")
 
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "injection_findings.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(all_findings, ensure_ascii=False, indent=2))
+    path = out.save("injection_findings.json", all_findings)
     logger.info(f"Injection findings saved → {path}")
 
     return {"findings": all_findings}

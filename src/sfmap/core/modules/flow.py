@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from importlib.resources import files as resource_files
 
 # Third-party imports
@@ -8,6 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 _DESCRIPTOR = (
     "serviceComponent://ui.flow.components.controllers.InterviewController"
@@ -69,7 +68,7 @@ def _probe(client: AuraClient, flow_name: str) -> dict | None:
     return {"_error": msg}
 
 
-def fuzz(client: AuraClient, output_dir: str, wordlist_path: str | None = None) -> list[dict]:
+def fuzz(client: AuraClient, out: OutputWriter, wordlist_path: str | None = None) -> list[dict]:
     """
     Wordlist-fuzz Flow API names via InterviewController/ACTION$getFlowUIMetadata.
     SUCCESS → flow fully accessible (metadata returned).
@@ -95,13 +94,10 @@ def fuzz(client: AuraClient, output_dir: str, wordlist_path: str | None = None) 
 
         hits.append({"flow_api_name": name, "metadata": result})
 
-    os.makedirs(output_dir, exist_ok=True)
-    out = os.path.join(output_dir, "flow_hits.json")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(hits, ensure_ascii=False, indent=2))
+    path = out.save("flow_hits.json", hits)
 
     if hits:
-        logger.success(f"Flow fuzz: {len(hits)} flow(s) found, saved to {out}")
+        logger.success(f"Flow fuzz: {len(hits)} flow(s) found, saved to {path}")
     else:
         logger.info("Flow fuzz: no flows found")
 

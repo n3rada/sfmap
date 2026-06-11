@@ -7,6 +7,41 @@ from urllib.parse import urlparse
 from .common import resolve_url
 
 
+class OutputWriter:
+    """Owns a directory and provides typed methods for writing assessment output."""
+
+    def __init__(self, path: str | Path):
+        self._path = Path(path)
+        self._path.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def path(self) -> Path:
+        return self._path
+
+    def __str__(self) -> str:
+        return str(self._path)
+
+    def __truediv__(self, name: str) -> Path:
+        return self._path / name
+
+    def save(self, filename: str, data: dict | list) -> Path:
+        p = self._path / filename
+        save_json(p, data)
+        return p
+
+    def save_bytes(self, filename: str, data: bytes) -> Path:
+        p = self._path / filename
+        p.write_bytes(data)
+        return p
+
+    def append_text(self, filename: str, text: str) -> None:
+        with (self._path / filename).open("a", encoding="utf-8") as fh:
+            fh.write(text)
+
+    def subdir(self, name: str) -> "OutputWriter":
+        return OutputWriter(self._path / name)
+
+
 def output_dir(url: str) -> str:
     """Derive a filesystem-safe output directory name from a URL."""
     parsed = urlparse(resolve_url(url))

@@ -412,7 +412,7 @@ def check_network_config(client: AuraClient) -> dict:
     return result
 
 
-def run(client: AuraClient, session: Session, output_dir: str | None = None) -> dict:
+def run(client: AuraClient, session: Session, out: "storage.OutputWriter | None" = None) -> dict:
     summary = {
         "self_registration": check_self_registration(client),
         "rest_api": check_rest_api(client, session.url),
@@ -425,9 +425,8 @@ def run(client: AuraClient, session: Session, output_dir: str | None = None) -> 
         "extra_endpoints": check_extra_endpoints(client, session.url),
     }
 
-    if output_dir:
-        path = f"{output_dir}/exposure_summary.json"
-        storage.save_json(path, summary)
+    if out is not None:
+        path = out.save("exposure_summary.json", summary)
         logger.info(f"Saved exposure summary to {path}")
 
     return summary

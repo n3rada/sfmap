@@ -8,6 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 from . import dump
 
 _DESCRIPTOR = (
@@ -87,7 +88,7 @@ def _probe_relationship(
 def probe(
     client: AuraClient,
     record_id: str,
-    output_dir: str,
+    out: OutputWriter,
     object_api_name: str | None = None,
 ) -> dict[str, int]:
     """
@@ -135,25 +136,23 @@ def probe(
         else:
             logger.debug(f"{rel}: 0 records")
 
-    out = Path(output_dir) / f"relatedlists_{record_id}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({
+    path = out.save(f"relatedlists_{record_id}.json", {
         "record_id": record_id,
         "object_api_name": object_api_name,
         "results": results,
         "findings": findings,
-    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    })
 
     hit_count = sum(1 for v in results.values() if v > 0)
     if hit_count:
-        logger.success(f"{hit_count}/{len(relationships)} relationship(s) returned data, saved to {out}")
+        logger.success(f"{hit_count}/{len(relationships)} relationship(s) returned data, saved to {path}")
     else:
         logger.info(f"No accessible child records found across {len(relationships)} relationship(s)")
 
     return results
 
 
-def sweep(client: AuraClient, output_dir: str) -> dict[str, dict[str, int]]:
+def sweep(client: AuraClient, out: OutputWriter) -> dict[str, dict[str, int]]:
     """
     Scan output_dir for existing Aura and GraphQL dumps, probe child
     relations from one sample record per object type. Discovers objects
@@ -161,7 +160,7 @@ def sweep(client: AuraClient, output_dir: str) -> dict[str, dict[str, int]]:
 
     Returns {object_name: {relation: count}} for objects with accessible children.
     """
-    base = Path(output_dir)
+    base = out.path
     samples: dict[str, str] = {}  # object_name -> record_id
 
     for page_file in sorted(base.glob("*__page1.json")):
@@ -200,7 +199,7 @@ def sweep(client: AuraClient, output_dir: str) -> dict[str, dict[str, int]]:
     probed: dict[str, dict[str, int]] = {}
     for obj_name, record_id in sorted(samples.items()):
         logger.info(f"Probing {obj_name} ({record_id})")
-        results = probe(client, record_id, output_dir, object_api_name=obj_name)
+        results = probe(client, record_id, out, object_api_name=obj_name)
         if any(v > 0 for v in results.values()):
             probed[obj_name] = results
 

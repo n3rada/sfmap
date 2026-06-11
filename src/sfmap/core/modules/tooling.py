@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 from urllib.parse import quote_plus, urlparse
 
 # Third-party imports
@@ -8,6 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
+from ..utils.storage import OutputWriter
 
 _QUERIES: list[tuple[str, str]] = [
     (
@@ -53,7 +52,7 @@ def _query_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
     return records
 
 
-def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
+def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
     """
     Query Salesforce Tooling API for Apex source code.
     Requires a Bearer token; community sessions are blocked.
@@ -75,8 +74,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
         return {}
 
     logger.info("Tooling API accessible, querying Apex source")
-    tooling_dir = os.path.join(output_dir, "tooling")
-    os.makedirs(tooling_dir, exist_ok=True)
+    tooling_out = out.subdir("tooling")
 
     results: dict[str, int] = {}
 
@@ -89,15 +87,13 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> dict[str, int]:
         results[type_name] = len(records)
         logger.success(f"Tooling {type_name}: {len(records)} record(s) with source accessible")
 
-        path = os.path.join(tooling_dir, f"tooling_{type_name}.json")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(records, ensure_ascii=False, indent=2))
+        path = tooling_out.save(f"tooling_{type_name}.json", records)
         logger.info(f"Saved to {path}")
 
     if results:
         logger.success(
             f"Tooling API: source code for {sum(results.values())} object(s) "
-            f"across {len(results)} type(s), see {tooling_dir}/"
+            f"across {len(results)} type(s), see {tooling_out}/"
         )
     else:
         logger.info("Tooling API: accessible but no Apex source returned")

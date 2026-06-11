@@ -17,6 +17,7 @@ from .core.session import Session
 from .core.modules import apex, apexrest, bootstrap, chatter, content, crud, dump, enum, exposure, flow, graphql, idor, injection, listviews, network, relatedlist, reporter, soql, staticresource, tooling
 from .core.utils import autocontext, identity as identity_mod
 from .core.utils import burp as burp_mod, common, logbook, storage
+from .core.utils.storage import OutputWriter
 
 
 def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None) -> str:
@@ -168,24 +169,21 @@ def _build_session(args: argparse.Namespace) -> Session:
 
 def cmd_list_objects(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    os.makedirs(output_dir, exist_ok=True)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         objects, csp_sites = enum.list_objects_with_csp(client)
         enum._print_objects_from(objects)
     storage.save_config_data(session.url, objects)
     logger.info(f"Object list cached → {storage.config_data_path(session.url)}")
     if csp_sites:
-        csp_path = os.path.join(output_dir, "csp_trusted_sites.json")
-        with open(csp_path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(csp_sites, ensure_ascii=False, indent=2))
-        logger.info(f"CSP trusted sites saved → {csp_path}")
+        path = out.save("csp_trusted_sites.json", csp_sites)
+        logger.info(f"CSP trusted sites saved → {path}")
     return 0
 
 
 def cmd_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     obj_type = getattr(args, "type", "both")
     display = getattr(args, "display", False)
     custom_fields = getattr(args, "custom_fields", False)
@@ -195,7 +193,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
         if explicit:
             for i, obj in enumerate(explicit, 1):
                 logger.debug(f"{i}/{len(explicit)}) Dumping '{obj}'")
-                ok = dump.dump_object(client, obj, output_dir, full=True,
+                ok = dump.dump_object(client, obj, out, full=True,
                                       display=display, custom_fields=custom_fields)
                 if not ok:
                     logger.debug(f"No data returned for '{obj}'")
@@ -212,7 +210,7 @@ def cmd_dump(args: argparse.Namespace) -> int:
             failed = []
             for i, obj in enumerate(names, 1):
                 logger.debug(f"{i}/{len(names)}) {obj}")
-                ok = dump.dump_object(client, obj, output_dir, full=True,
+                ok = dump.dump_object(client, obj, out, full=True,
                                       custom_fields=custom_fields)
                 if not ok:
                     failed.append(obj)
@@ -231,18 +229,18 @@ def cmd_record(args: argparse.Namespace) -> int:
 
 def cmd_content_enum(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        critical = content.run(client, session.url, output_dir)
+        critical = content.run(client, session.url, out)
     return 1 if critical else 0
 
 
 def cmd_exposure(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
 
     with AuraClient(session) as client:
-        summary = exposure.run(client, session, output_dir=output_dir)
+        summary = exposure.run(client, session, out=out)
 
     findings = 0
     if summary["self_registration"].get("enabled"):
@@ -267,15 +265,14 @@ def cmd_exposure(args: argparse.Namespace) -> int:
 
 def cmd_download(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    base_dir = _resolve_output_dir(args, session)
-    downloads_dir = os.path.join(base_dir, "downloads")
-    path = dump.download_file(AuraClient(session), args.sf_id, session.url, downloads_dir)
+    out = OutputWriter(_resolve_output_dir(args, session))
+    path = dump.download_file(AuraClient(session), args.sf_id, session.url, out.subdir("downloads"))
     return 0 if path else 1
 
 
 def cmd_crud_probe(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
         if args.type == "standard":
@@ -284,79 +281,75 @@ def cmd_crud_probe(args: argparse.Namespace) -> int:
             targets = {k: v for k, v in all_objects.items() if k.endswith("__c")}
         else:
             targets = all_objects
-        findings = crud.probe(client, targets, output_dir)
+        findings = crud.probe(client, targets, out)
     return 1 if findings else 0
 
 
 def cmd_soql_inject(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     apex_hits: list[str] = getattr(args, "apex_hits", None) or []
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
-        result = injection.run(client, all_objects, apex_hits, output_dir)
+        result = injection.run(client, all_objects, apex_hits, out)
     return 1 if result["findings"] else 0
 
 
 def cmd_chatter(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        summary = chatter.run(client, session.url, output_dir)
+        summary = chatter.run(client, session.url, out)
     findings = bool(summary.get("file_upload") or summary.get("aura_objects") or summary.get("rest_endpoints"))
     return 1 if findings else 0
 
 
 def cmd_graphql_dump(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     obj = getattr(args, "object", None)
     fields = getattr(args, "fields", None) or []
     with AuraClient(session) as client:
         if obj and fields:
-            # Explicit: one object with named fields
-            result = graphql.dump_object(client, obj, fields, output_dir)
+            result = graphql.dump_object(client, obj, fields, out)
             return 1 if result else 0
         elif obj:
-            # Auto-discover fields for one object
-            result = graphql.autodump(client, output_dir, object_names=[obj])
+            result = graphql.autodump(client, out, object_names=[obj])
         else:
-            # Full sweep: discover all accessible objects + fields
-            result = graphql.autodump(client, output_dir, object_names=None)
+            result = graphql.autodump(client, out, object_names=None)
     return 1 if result else 0
 
 
 def cmd_graphql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
         object_names = list(all_objects.keys())
-        schema_path = Path(output_dir) / "graphql" / "graphql_schema.json"
+        schema_path = out / "graphql" / "graphql_schema.json"
         if schema_path.is_file():
             schema_names = graphql.schema_object_names(schema_path)
             extra = [n for n in schema_names if n not in all_objects]
             if extra:
                 logger.info(f"Schema expands sweep by {len(extra)} type(s) not in getConfigData")
                 object_names.extend(extra)
-        results = graphql.query_objects(client, object_names, output_dir)
+        results = graphql.query_objects(client, object_names, out)
     return 1 if any(v > 0 for v in results.values()) else 0
 
 
 def cmd_content_download(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    base_dir = _resolve_output_dir(args, session)
-    downloads_dir = os.path.join(base_dir, "downloads")
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        downloaded = content.download_all(client, session.url, base_dir, downloads_dir)
+        downloaded = content.download_all(client, session.url, out, out.subdir("downloads"))
     return 0 if downloaded else 1
 
 
 def cmd_graphql_introspect(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        ok = graphql.introspect(client, session.url, output_dir)
+        ok = graphql.introspect(client, session.url, out)
     return 0 if ok else 1
 
 
@@ -375,31 +368,25 @@ def cmd_apex_fuzz(args: argparse.Namespace) -> int:
 
 def cmd_apex_controllers(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    os.makedirs(output_dir, exist_ok=True)
+    out = OutputWriter(_resolve_output_dir(args, session))
 
     with AuraClient(session) as client:
-        descriptors = apex.discover(client, session.url, output_dir)
+        descriptors = apex.discover(client, session.url, str(out))
 
     if not descriptors:
         logger.info("No Apex ACTION descriptors discovered")
         return 0
 
-    disc_path = os.path.join(output_dir, "apex_descriptors.json")
-    with open(disc_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(descriptors, ensure_ascii=False, indent=2))
+    disc_path = out.save("apex_descriptors.json", descriptors)
     logger.info(f"Saved {len(descriptors)} descriptor(s) to {disc_path}")
 
     with AuraClient(session) as client:
         results = apex.probe(client, descriptors)
 
-    callable_ones  = [d for d, s in results.items() if s == "callable"]
-    exists_denied  = [d for d, s in results.items() if s == "exists_denied"]
+    callable_ones = [d for d, s in results.items() if s == "callable"]
+    exists_denied = [d for d, s in results.items() if s == "exists_denied"]
 
-    hits_path = os.path.join(output_dir, "apex_hits.json")
-    with open(hits_path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps({"callable": callable_ones, "exists_denied": exists_denied},
-                             ensure_ascii=False, indent=2))
+    out.save("apex_hits.json", {"callable": callable_ones, "exists_denied": exists_denied})
 
     logger.info(f"Probe complete: {len(callable_ones)} callable, {len(exists_denied)} access-denied")
     return 1 if callable_ones or exists_denied else 0
@@ -407,16 +394,13 @@ def cmd_apex_controllers(args: argparse.Namespace) -> int:
 
 def cmd_object_info(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    os.makedirs(output_dir, exist_ok=True)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         objects = args.objects or list(enum.list_objects(client).keys())
         for obj in objects:
             info = dump.get_object_info(client, obj)
             if info:
-                path = os.path.join(output_dir, f"objectinfo_{obj}.json")
-                with open(path, "w", encoding="utf-8") as fh:
-                    fh.write(json.dumps(info, ensure_ascii=False, indent=2))
+                path = out.save(f"objectinfo_{obj}.json", info)
                 fields = info.get("fields", {})
                 logger.info(f"{obj}: {len(fields)} field(s), saved to {path}")
             else:
@@ -426,12 +410,12 @@ def cmd_object_info(args: argparse.Namespace) -> int:
 
 def cmd_related_lists(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         results = relatedlist.probe(
             client,
             args.record_id,
-            output_dir,
+            out,
             object_api_name=getattr(args, "object", None),
         )
     return 1 if any(v > 0 for v in results.values()) else 0
@@ -439,96 +423,94 @@ def cmd_related_lists(args: argparse.Namespace) -> int:
 
 def cmd_aura_follow(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = relatedlist.sweep(client, output_dir)
+        results = relatedlist.sweep(client, out)
     return 1 if results else 0
 
 
 def cmd_flow_fuzz(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        hits = flow.fuzz(client, output_dir, wordlist_path=getattr(args, "wordlist", None))
+        hits = flow.fuzz(client, out, wordlist_path=getattr(args, "wordlist", None))
     return 1 if hits else 0
 
 
 def cmd_network_access(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = network.fetch(client, output_dir)
+        results = network.fetch(client, out)
     return 1 if results else 0
 
 
 def cmd_idor_probe(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    record_ids = idor.collect_ids_from_directory(output_dir)
+    out = OutputWriter(_resolve_output_dir(args, session))
+    record_ids = idor.collect_ids_from_directory(out.path)
     if not record_ids:
         logger.warning("No record IDs found in output directory, run 'aura dump' first")
         return 1
-    logger.info(f"Collected {len(record_ids)} unique record ID(s) from {output_dir}")
-    findings = idor.probe_guest(session, record_ids, output_dir)
+    logger.info(f"Collected {len(record_ids)} unique record ID(s) from {out}")
+    findings = idor.probe_guest(session, record_ids, out)
     return 1 if findings else 0
 
 
 def cmd_content_distribution(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        hits = content.check_content_distribution(client, session.url, output_dir)
+        hits = content.check_content_distribution(client, session.url, out)
     return 1 if hits else 0
 
 
 def cmd_apexrest_fuzz(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        hits = apexrest.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
+        hits = apexrest.fuzz(client, session.url, out, wordlist_path=args.wordlist)
     return 1 if hits else 0
 
 
 def cmd_static_resources(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        hits = staticresource.fuzz(client, session.url, output_dir, wordlist_path=args.wordlist)
+        hits = staticresource.fuzz(client, session.url, out, wordlist_path=args.wordlist)
     return 1 if hits else 0
 
 
 def cmd_soql_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    soql_dir = os.path.join(output_dir, "soql")
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = soql.run(client, session.url, soql_dir)
+        results = soql.run(client, session.url, out.subdir("soql"))
     return 1 if results else 0
 
 
 def cmd_sosl_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
-    sosl_dir = os.path.join(output_dir, "sosl")
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = soql.run_sosl(client, session.url, sosl_dir)
+        results = soql.run_sosl(client, session.url, out.subdir("sosl"))
     return 1 if results else 0
 
 
 def cmd_bootstrap(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = bootstrap.fetch(client, output_dir)
+        results = bootstrap.fetch(client, out)
     return 1 if results else 0
 
 
 def cmd_list_views(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
         all_objects = enum.list_objects(client)
-        urls = listviews.sweep(client, list(all_objects.keys()), output_dir)
+        urls = listviews.sweep(client, list(all_objects.keys()), out)
     return 1 if urls else 0
 
 
@@ -547,9 +529,9 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 def cmd_tooling_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
-    output_dir = _resolve_output_dir(args, session)
+    out = OutputWriter(_resolve_output_dir(args, session))
     with AuraClient(session) as client:
-        results = tooling.run(client, session.url, output_dir)
+        results = tooling.run(client, session.url, out)
     return 1 if results else 0
 
 

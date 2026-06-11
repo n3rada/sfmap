@@ -1,12 +1,9 @@
-# Built-in imports
-import json
-import os
-
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 from . import dump
 
 _OBJECTS = [
@@ -59,7 +56,7 @@ def _get_full_record(client: AuraClient, record_id: str) -> dict | None:
     return None
 
 
-def fetch(client: AuraClient, output_dir: str) -> dict[str, list]:
+def fetch(client: AuraClient, out: OutputWriter) -> dict[str, list]:
     """
     Enumerate Experience Cloud network configuration.
     Network.GuestProfileId reveals the profile governing all unauthenticated
@@ -106,10 +103,7 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, list]:
     if enriched:
         results["Network"] = enriched
 
-    os.makedirs(output_dir, exist_ok=True)
-    out = os.path.join(output_dir, "network_config.json")
-    with open(out, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(results, ensure_ascii=False, indent=2))
-    logger.info(f"Network config saved to {out}")
+    path = out.save("network_config.json", results)
+    logger.info(f"Network config saved to {path}")
 
     return results

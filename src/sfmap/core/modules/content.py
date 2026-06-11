@@ -7,6 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
+from ..utils.storage import OutputWriter
 from . import dump
 
 
@@ -23,7 +24,7 @@ def _extract_ids(rv: dict) -> list[str]:
 
 def enumerate_content(
     client: AuraClient,
-    output_dir: str,
+    out: OutputWriter,
 ) -> dict[str, list[str]]:
     """
     Dump ContentDocument and ContentVersion via Aura getItems.
@@ -49,7 +50,7 @@ def enumerate_content(
         if ids:
             found[obj_name] = ids
 
-        dump.write_page(output_dir, obj_name, 1, rv)
+        dump.write_page(out, obj_name, 1, rv)
 
     return found
 
@@ -99,8 +100,8 @@ def probe_rest(
 def download_all(
     client: AuraClient,
     aura_url: str,
-    output_dir: str,
-    download_dir: str,
+    out: OutputWriter,
+    downloads_out: OutputWriter,
 ) -> int:
     """
     Enumerate ContentDocument + ContentVersion via Aura then download every
@@ -109,7 +110,7 @@ def download_all(
     Metadata JSON is written to *output_dir*; binary files go to *download_dir*.
     Returns the number of files successfully downloaded.
     """
-    found = enumerate_content(client, output_dir)
+    found = enumerate_content(client, out)
 
     all_ids: list[str] = []
     for ids in found.values():
@@ -119,10 +120,10 @@ def download_all(
         logger.info("No content records found, nothing to download.")
         return 0
 
-    logger.info(f"Downloading {len(all_ids)} file(s) to {download_dir}")
+    logger.info(f"Downloading {len(all_ids)} file(s) to {downloads_out}")
     downloaded = 0
     for sf_id in all_ids:
-        path = dump.download_file(client, sf_id, aura_url, download_dir)
+        path = dump.download_file(client, sf_id, aura_url, downloads_out)
         if path:
             downloaded += 1
 
@@ -133,7 +134,7 @@ def download_all(
 def check_content_distribution(
     client: AuraClient,
     aura_url: str,
-    output_dir: str,
+    out: OutputWriter,
 ) -> list[dict]:
     """
     Enumerate ContentDistribution records and probe each public URL without auth.
@@ -149,7 +150,7 @@ def check_content_distribution(
     results = rv.get("result", [])
     total = rv.get("totalCount", len(results))
     logger.info(f"ContentDistribution: {total} record(s) found")
-    dump.write_page(output_dir, "ContentDistribution", 1, rv)
+    dump.write_page(out, "ContentDistribution", 1, rv)
 
     public_hits: list[dict] = []
     parsed = urlparse(aura_url)
@@ -210,7 +211,7 @@ def check_content_distribution(
     return public_hits
 
 
-def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
+def run(client: AuraClient, aura_url: str, out: OutputWriter) -> int:
     """
     Full content-enumeration check.
 
@@ -221,7 +222,7 @@ def run(client: AuraClient, aura_url: str, output_dir: str) -> int:
     (0 = no critical finding).
     """
     logger.info("Enumerating ContentDocument / ContentVersion via Aura")
-    found = enumerate_content(client, output_dir)
+    found = enumerate_content(client, out)
 
     version_ids = found.get("ContentVersion", [])
 

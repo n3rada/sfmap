@@ -1,6 +1,4 @@
 # Built-in imports
-import json
-import os
 import re
 from pathlib import Path
 
@@ -10,6 +8,7 @@ from loguru import logger
 # Local imports
 from ..client import AuraClient
 from ..session import Session
+from ..utils.storage import OutputWriter
 from . import dump
 
 _SF_ID_RE = re.compile(r'\b([0-9A-Za-z]{15}|[0-9A-Za-z]{18})\b')
@@ -96,7 +95,7 @@ def collect_ids_from_directory(directory: str) -> list[str]:
 def probe_guest(
     session: Session,
     record_ids: list[str],
-    output_dir: str,
+    out: OutputWriter,
 ) -> list[dict]:
     """
     Try getRecord for each ID via an unauthenticated guest session.
@@ -159,10 +158,7 @@ def probe_guest(
                 logger.exception(f"IDOR probe error for {record_id}")
 
     if findings:
-        os.makedirs(output_dir, exist_ok=True)
-        path = os.path.join(output_dir, "idor_findings.json")
-        with open(path, "w", encoding="utf-8") as fh:
-            fh.write(json.dumps(findings, ensure_ascii=False, indent=2))
+        path = out.save("idor_findings.json", findings)
         logger.success(
             f"IDOR: {len(findings)} record(s) accessible as unauthenticated guest, "
             f"see {path}"

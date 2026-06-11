@@ -1,15 +1,12 @@
-# Built-in imports
-import json
-import os
-
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils.storage import OutputWriter
 
 
-def fetch(client: AuraClient, output_dir: str) -> dict[str, str]:
+def fetch(client: AuraClient, out: OutputWriter) -> dict[str, str]:
     """
     Fetch bootstrap data via CMCAppController.
 
@@ -62,10 +59,7 @@ def fetch(client: AuraClient, output_dir: str) -> dict[str, str]:
     for obj, url in sorted(home_urls.items()):
         logger.info(f"  {obj}: {url}")
 
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, "bootstrap_urls.json")
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(json.dumps(home_urls, ensure_ascii=False, indent=2))
+    path = out.save("bootstrap_urls.json", home_urls)
     logger.info(f"Bootstrap URLs saved to {path}")
 
     return home_urls
