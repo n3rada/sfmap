@@ -478,6 +478,202 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_scan(args: argparse.Namespace) -> int:
+    """
+    Full assessment: run every module in dependency order, then generate the report.
+
+    Phase 1 (independent): exposure surface, GraphQL introspection, static resources,
+    ApexREST, Chatter, network config, bootstrap.
+
+    Phase 2: object enumeration (getConfigData).
+
+    Phase 3 (needs objects): Aura dump, CRUD probe, SOQL injection, list views,
+    GraphQL query sweep, Flow fuzzing, Apex controller discovery.
+
+    Phase 4 (needs dump results): GraphQL field-level dump, related-object follow,
+    content enumeration.
+
+    Phase 5 (cross-identity): IDOR probe.
+
+    Phase 6: report generation.
+    """
+    session = _build_session(args)
+    base_output = common.default_output_dir(session.url)
+    output_dir = _resolve_output_dir(args, session)
+    os.makedirs(output_dir, exist_ok=True)
+
+    skip = frozenset(s.lower() for s in (getattr(args, "skip", None) or []))
+
+    def _skip(name: str) -> bool:
+        return name in skip
+
+    logger.info(f"sfmap scan starting → {output_dir}")
+
+    with AuraClient(session) as client:
+        # Phase 1: Independent recon
+        logger.info("Phase 1: Surface reconnaissance")
+
+        if not _skip("exposure"):
+            try:
+                exposure.run(client, session, output_dir=output_dir)
+            except Exception:
+                logger.exception("surface exposure failed")
+
+        if not _skip("introspect"):
+            try:
+                graphql.introspect(client, session.url, output_dir)
+            except Exception:
+                logger.exception("GraphQL introspection failed")
+
+        if not _skip("static"):
+            try:
+                staticresource.fuzz(client, session.url, output_dir)
+            except Exception:
+                logger.exception("static resource fuzz failed")
+
+        if not _skip("apexrest"):
+            try:
+                apexrest.fuzz(client, session.url, output_dir)
+            except Exception:
+                logger.exception("ApexREST fuzz failed")
+
+        if not _skip("chatter"):
+            try:
+                chatter.run(client, session.url, output_dir)
+            except Exception:
+                logger.exception("Chatter probe failed")
+
+        if not _skip("network"):
+            try:
+                network.fetch(client, output_dir)
+            except Exception:
+                logger.exception("network config fetch failed")
+
+        if not _skip("bootstrap"):
+            try:
+                bootstrap.fetch(client, output_dir)
+            except Exception:
+                logger.exception("bootstrap fetch failed")
+
+        # Phase 2: Object enumeration
+        logger.info("Phase 2: Object enumeration")
+        all_objects: dict[str, str] = {}
+        if not _skip("objects"):
+            try:
+                all_objects = enum.list_objects(client)
+                logger.info(f"Enumerated {len(all_objects)} object(s)")
+                storage.save_config_data(session.url, all_objects)
+            except Exception:
+                logger.exception("object enumeration failed")
+
+        # Phase 3: Parallel-safe enumeration (all depend on object list)
+        logger.info("Phase 3: Object-level enumeration")
+
+        if all_objects and not _skip("dump"):
+            try:
+                for i, obj in enumerate(all_objects, 1):
+                    logger.debug(f"[{i}/{len(all_objects)}] dump {obj}")
+                    dump.dump_object(client, obj, output_dir, full=True)
+            except Exception:
+                logger.exception("Aura dump failed")
+
+        if all_objects and not _skip("crud"):
+            try:
+                crud.probe(client, all_objects, output_dir)
+            except Exception:
+                logger.exception("CRUD probe failed")
+
+        if all_objects and not _skip("inject"):
+            try:
+                injection.run(client, all_objects, [], output_dir)
+            except Exception:
+                logger.exception("SOQL injection probe failed")
+
+        if all_objects and not _skip("views"):
+            try:
+                listviews.sweep(client, list(all_objects.keys()), output_dir)
+            except Exception:
+                logger.exception("list views sweep failed")
+
+        if all_objects and not _skip("graphql-query"):
+            try:
+                schema_path = Path(output_dir) / "graphql" / "graphql_schema.json"
+                object_names = list(all_objects.keys())
+                if schema_path.is_file():
+                    schema_names = graphql.schema_object_names(schema_path)
+                    extra = [n for n in schema_names if n not in all_objects]
+                    if extra:
+                        logger.info(f"Schema adds {len(extra)} type(s) to GraphQL sweep")
+                        object_names.extend(extra)
+                graphql.query_objects(client, object_names, output_dir)
+            except Exception:
+                logger.exception("GraphQL query sweep failed")
+
+        if not _skip("flow"):
+            try:
+                flow.fuzz(client, output_dir)
+            except Exception:
+                logger.exception("Flow fuzz failed")
+
+        if not _skip("controllers"):
+            try:
+                descriptors = apex.discover(client, session.url, output_dir)
+                if descriptors:
+                    disc_path = os.path.join(output_dir, "apex_descriptors.json")
+                    with open(disc_path, "w", encoding="utf-8") as fh:
+                        fh.write(json.dumps(descriptors, ensure_ascii=False, indent=2))
+                    results = apex.probe(client, descriptors)
+                    callable_ones = [d for d, s in results.items() if s == "callable"]
+                    exists_denied = [d for d, s in results.items() if s == "exists_denied"]
+                    hits_path = os.path.join(output_dir, "apex_hits.json")
+                    with open(hits_path, "w", encoding="utf-8") as fh:
+                        fh.write(json.dumps(
+                            {"callable": callable_ones, "exists_denied": exists_denied},
+                            ensure_ascii=False, indent=2,
+                        ))
+            except Exception:
+                logger.exception("Apex controller discovery failed")
+
+        # Phase 4: Post-dump
+        logger.info("Phase 4: Post-dump enumeration")
+
+        if not _skip("graphql-dump"):
+            try:
+                graphql.autodump(client, output_dir, object_names=None)
+            except Exception:
+                logger.exception("GraphQL autodump failed")
+
+        if not _skip("follow"):
+            try:
+                relatedlist.sweep(client, output_dir)
+            except Exception:
+                logger.exception("related-list follow failed")
+
+        if not _skip("content"):
+            try:
+                content.run(client, session.url, output_dir)
+            except Exception:
+                logger.exception("content enumeration failed")
+
+    # Phase 5: IDOR (guest probe, no client needed)
+    if not _skip("idor"):
+        logger.info("Phase 5: IDOR probe")
+        try:
+            record_ids = idor.collect_ids_from_directory(output_dir)
+            if record_ids:
+                logger.info(f"IDOR: {len(record_ids)} record ID(s) collected for guest probe")
+                idor.probe_guest(session, record_ids, output_dir)
+            else:
+                logger.info("IDOR: no record IDs to probe")
+        except Exception:
+            logger.exception("IDOR probe failed")
+
+    # Phase 6: Report
+    logger.info("Phase 6: Generating report")
+    reporter.generate(base_output)
+    return 0
+
+
 def cmd_tooling_query(args: argparse.Namespace) -> int:
     session = _build_session(args)
     output_dir = _resolve_output_dir(args, session)
@@ -770,6 +966,25 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_chatter)
     p_chatter.set_defaults(func=cmd_chatter)
+
+    # -- scan ----------------------------------------------------------------
+    p_scan = surfaces.add_parser(
+        "scan",
+        help="Full assessment: run all modules in dependency order, then generate the report",
+    )
+    _add_common_args(p_scan)
+    p_scan.add_argument(
+        "--skip",
+        nargs="+",
+        metavar="MODULE",
+        default=[],
+        help=(
+            "Skip specific modules. Names: exposure, introspect, static, apexrest, chatter, "
+            "network, bootstrap, objects, dump, crud, inject, views, graphql-query, flow, "
+            "controllers, graphql-dump, follow, content, idor"
+        ),
+    )
+    p_scan.set_defaults(func=cmd_scan)
 
     # -- report --------------------------------------------------------------
     p_report = surfaces.add_parser(

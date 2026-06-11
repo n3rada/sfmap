@@ -172,9 +172,10 @@ def _section_access_objects(
 
     sweep: dict[str, int] = {}
     graphql_dir = base / "graphql"
+    _GRAPHQL_NON_OBJECT_FILES = frozenset({"graphql_schema.json", "graphql_introspection_status.json"})
     if graphql_dir.is_dir():
         for p in sorted(graphql_dir.glob("graphql_*.json")):
-            if p.name == "graphql_schema.json":
+            if p.name in _GRAPHQL_NON_OBJECT_FILES:
                 continue
             obj_name = p.stem.removeprefix("graphql_")
             data = _load_json(p)
@@ -297,9 +298,10 @@ def _section_graphql_query(output_dir: str, rel_dir: str = "") -> str:
     if not graphql_dir.is_dir():
         return ""
 
+    _NON_OBJECT = frozenset({"graphql_schema.json", "graphql_introspection_status.json"})
     hits: list[tuple[str, int]] = []
     for p in sorted(graphql_dir.glob("graphql_*.json")):
-        if p.name == "graphql_schema.json":
+        if p.name in _NON_OBJECT:
             continue
         obj_name = p.stem.removeprefix("graphql_")
         data = _load_json(p)
