@@ -3,6 +3,7 @@ https_*
 ctx.json
 cookies.txt
 token.txt
+burp.txt
 salesforce_*/
 
 ./venv
