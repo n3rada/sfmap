@@ -147,11 +147,39 @@ def verify(client: AuraClient) -> None:
     client.aura_post(payload)
 
 
-def save_display_name(output_dir: str, display_name: str) -> None:
-    """Write display_name.txt into the identity directory."""
+def save_identity_json(
+    output_dir: str,
+    label: str,
+    display: str | None,
+    session: "object | None" = None,
+) -> None:
+    """Write identity.json into the session directory."""
+    import json as _json
+    from datetime import datetime, timezone
     from pathlib import Path
+
+    data: dict = {
+        "label": label,
+        "display_name": display or label,
+        "type": "guest" if label == "guest" else "authenticated",
+        "recorded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if session is not None:
+        if getattr(session, "cookie", None):
+            data["has_cookie"] = True
+        if getattr(session, "bearer_token", None):
+            data["has_bearer"] = True
+        url = getattr(session, "url", None)
+        if url:
+            data["aura_url"] = url
+
     try:
-        Path(output_dir).mkdir(parents=True, exist_ok=True)
-        (Path(output_dir) / "display_name.txt").write_text(display_name, encoding="utf-8")
+        p = Path(output_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        identity_path = p / "identity.json"
+        if not identity_path.exists():
+            identity_path.write_text(
+                _json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
     except Exception:
-        logger.exception(f"Could not write display_name.txt to {output_dir}")
+        logger.exception(f"Could not write identity.json to {output_dir}")

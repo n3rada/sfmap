@@ -27,11 +27,12 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
     if not args.url:
         logger.error("URL is required when --output is not specified")
         raise SystemExit(1)
-    base = common.default_output_dir(args.url)
+    target_root = common.default_output_dir(args.url)
     label = getattr(args, "identity", None)
     display: str | None = None
+    is_guest = session is None or session.is_guest
     if not label:
-        if session is None or session.is_guest:
+        if is_guest:
             label = "guest"
         else:
             with AuraClient(session) as tmp:
@@ -39,9 +40,12 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
             if re.search(r"guest", label, re.IGNORECASE):
                 label = "guest"
                 display = None
-    output_dir = os.path.join(base, label)
-    if display and display != label:
-        identity_mod.save_display_name(output_dir, display)
+                is_guest = True
+    if is_guest or label == "guest":
+        output_dir = os.path.join(target_root, "guest")
+    else:
+        output_dir = os.path.join(target_root, "users", label)
+    identity_mod.save_identity_json(output_dir, label, display, session)
     return output_dir
 
 

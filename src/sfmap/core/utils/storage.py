@@ -43,11 +43,9 @@ class OutputWriter:
 
 
 def output_dir(url: str) -> str:
-    """Derive a filesystem-safe output directory name from a URL."""
+    """Derive a filesystem-safe target root directory name from a URL."""
     parsed = urlparse(resolve_url(url))
-    safe_host = parsed.netloc.replace(":", "_")
-    safe_path = parsed.path.strip("/").replace("/", "_") or "root"
-    return f"salesforce_{safe_host}_{safe_path}"
+    return parsed.netloc.replace(":", "_") or "unknown"
 
 
 def save_json(path: str | Path, data: dict | list) -> None:
