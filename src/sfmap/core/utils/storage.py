@@ -49,6 +49,14 @@ def output_dir(url: str) -> str:
     return f"salesforce_{safe_host}"
 
 
+def init_target_dirs(url: str) -> Path:
+    """Create the target root and its guest/ and users/ subdirectories. Returns the root path."""
+    root = Path(output_dir(url))
+    (root / "guest").mkdir(parents=True, exist_ok=True)
+    (root / "users").mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def save_json(path: str | Path, data: dict | list) -> None:
     """Write *data* to *path* as pretty-printed JSON, creating parent dirs."""
     p = Path(path)

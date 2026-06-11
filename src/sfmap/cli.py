@@ -27,7 +27,7 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
     if not args.url:
         logger.error("URL is required when --output is not specified")
         raise SystemExit(1)
-    target_root = common.default_output_dir(args.url)
+    target_root = str(storage.init_target_dirs(args.url))
     label = getattr(args, "identity", None)
     display: str | None = None
     is_guest = session is None or session.is_guest
