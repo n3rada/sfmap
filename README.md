@@ -2,7 +2,9 @@
 
 Chart every accessible surface of a Salesforce Experience Cloud deployment: enumerate objects, probe access controls, extract records, and detect misconfigurations. Works from an authenticated session or as a guest.
 
-## 📦 Installation
+New to Salesforce internals? Read [SALESFORCE_101.md](SALESFORCE_101.md) before starting an assessment.
+
+## Installation
 
 ```bash
 uv tool install git+https://github.com/n3rada/sfmap.git
@@ -20,9 +22,7 @@ Run without installing:
 uvx --from git+https://github.com/n3rada/sfmap.git sfmap --help
 ```
 
----
-
-## 🔑 Credentials
+## Credentials
 
 Salesforce exposes two surfaces with different credential requirements.
 
@@ -66,9 +66,7 @@ echo "00DAP..." > bearer.txt
 sfmap target.my.site.com --bearer @bearer.txt rest soql
 ```
 
----
-
-## 🗺️ Surfaces and Commands
+## Surfaces and Commands
 
 ```
 sfmap URL aura    objects | dump | record | info | crud | inject | related |
@@ -79,15 +77,14 @@ sfmap URL rest    graphql introspect | query | dump
                   static | apexrest | soql | sosl | tooling | chatter
 sfmap URL surface exposure
 sfmap URL files   download ID
+sfmap URL assess
 sfmap     report  -o DIR
 ```
 
 > [!TIP]
 > Run any command with `--help` for its options and flags.
 
----
-
-## 🚀 Assessment Runbook
+## Assessment Runbook
 
 Replace `TARGET` with your target domain throughout.
 
@@ -100,7 +97,17 @@ Replace `TARGET` with your target domain throughout.
 
 Route all traffic through Burp with `--proxy` appended to any command.
 
-### Phase 1: Surface Reconnaissance
+### Full automated assessment (recommended)
+
+```bash
+sfmap TARGET assess
+```
+
+Runs all phases in sequence, skips phases already completed (sentinel files are checked), and generates the HTML report automatically at the end. Equivalent to running every phase below manually.
+
+### Manual phase-by-phase
+
+#### Phase 1: Surface Reconnaissance
 
 ```bash
 sfmap TARGET surface exposure
@@ -112,13 +119,13 @@ sfmap TARGET aura network
 sfmap TARGET aura bootstrap
 ```
 
-### Phase 2: Object Enumeration
+#### Phase 2: Object Enumeration
 
 ```bash
 sfmap TARGET aura objects
 ```
 
-### Phase 3: Object-Level Enumeration
+#### Phase 3: Object-Level Enumeration
 
 ```bash
 sfmap TARGET aura dump
@@ -132,7 +139,7 @@ sfmap TARGET aura flow
 sfmap TARGET aura controllers
 ```
 
-### Phase 4: Post-Dump Enumeration
+#### Phase 4: Post-Dump Enumeration
 
 ```bash
 sfmap TARGET rest graphql dump
@@ -140,7 +147,7 @@ sfmap TARGET aura follow
 sfmap TARGET rest content enum
 ```
 
-### Phase 5: IDOR Probe
+#### Phase 5: IDOR Probe
 
 ```bash
 sfmap TARGET aura idor
@@ -148,7 +155,7 @@ sfmap TARGET aura idor
 
 Requires a prior `aura dump` in the same output directory to collect record IDs.
 
-### Phase 6: Content Download (optional)
+#### Phase 6: Content Download (optional)
 
 ```bash
 sfmap TARGET rest content download
@@ -158,17 +165,17 @@ sfmap TARGET rest content distribution
 ### Report
 
 ```bash
-sfmap report -o salesforce_TARGET_s_sfsites_aura
+sfmap report -o salesforce_TARGET
 ```
 
----
+Generates a self-contained `report.html` with one tab per identity (guest and authenticated), an IDOR findings table with owner attribution, and a browsable Record Browser for all dumped objects. Open directly in a browser — no server required.
 
-## 📂 Output
+## Output
 
 All output goes to a directory derived from the target URL (override with `-o`):
 
 ```
-salesforce_{host}_{path}/
+salesforce_{host}/
   {identity}/
     exposure_summary.json
     crud_probe.json
@@ -187,9 +194,7 @@ salesforce_{host}_{path}/
   report.html
 ```
 
----
-
-## 🧩 aura.context
+## aura.context
 
 Required for every Aura request. Salesforce pushes framework builds three times a year; re-capture when every request returns `exceptionEvent: true`.
 
@@ -203,8 +208,16 @@ Required for every Aura request. Salesforce pushes framework builds three times 
 }
 ```
 
----
+## Prior Art
 
-## ⚠️ Disclaimer
+sfmap was built after working with existing tools and hitting their limits on real engagements.
+
+[aura-inspector](https://github.com/google/aura-inspector) (Mandiant/Google) and [aura-dump](https://github.com/prjblk/aura-dump) (Project Black) both cover Aura object enumeration and record dumping via a single script. They require the caller to supply the full `aura.context` and token manually, operate on one object at a time, stop at a fixed page count, and produce raw JSON with no cross-run correlation. Neither covers REST surfaces (GraphQL, ApexREST, Chatter, SOQL), IDOR probing across sessions, CRUD/injection testing, or report generation.
+
+sfmap was written to run a complete assessment autonomously: auto-extracting the Aura context, paginating all objects to exhaustion, covering every REST surface, correlating findings across guest and authenticated sessions, and producing a structured HTML report suitable for a pentest deliverable.
+
+[Salesforce CLI (sf)](https://github.com/salesforcecli/cli) is the official tool for org inspection when admin credentials are in scope.
+
+## Disclaimer
 
 For authorized security assessments, bug bounty programs, and penetration testing engagements only.

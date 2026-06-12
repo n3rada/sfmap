@@ -328,8 +328,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate a self-contained HTML report from an existing output directory",
     )
     p_report.add_argument(
-        "--output", "-o", metavar="DIR", required=True,
-        help="Output directory to read",
+        "--output", "-o", metavar="DIR", required=False, default=None,
+        help="Output directory to read (default: derived from URL)",
     )
     p_report.set_defaults(func=cmd_report)
 

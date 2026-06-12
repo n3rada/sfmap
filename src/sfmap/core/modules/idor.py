@@ -153,11 +153,13 @@ def probe_guest(
                         "object_type": _OBJECT_PREFIXES.get(record_id[:3]),
                         "return_value_keys": rv_keys,
                         "record_name": name,
+                        "owner_id": None,
                     })
             except Exception:
                 logger.exception(f"IDOR probe error for {record_id}")
 
     if findings:
+        _enrich_with_auth(session, findings)
         path = out.save("idor_findings.json", findings)
         logger.success(
             f"IDOR: {len(findings)} record(s) accessible as unauthenticated guest, "
@@ -167,3 +169,42 @@ def probe_guest(
         logger.info("IDOR: no unauthenticated record access found")
 
     return findings
+
+
+def _enrich_with_auth(session: Session, findings: list[dict]) -> None:
+    with AuraClient(session) as auth_client:
+        for finding in findings:
+            if finding.get("record_name") and finding.get("owner_id"):
+                continue
+            record_id = finding["id"]
+            try:
+                payload = dump._payload_get_record(record_id)
+                resp = auth_client.aura_post(payload)
+                actions = resp.get("actions", [])
+                if not actions or actions[0].get("state") != "SUCCESS":
+                    continue
+                rv = actions[0].get("returnValue", {})
+                record_obj = rv.get("record", {}) if isinstance(rv, dict) else {}
+                if not isinstance(record_obj, dict):
+                    continue
+
+                def _fv(key: str) -> str | None:
+                    v = record_obj.get(key)
+                    if isinstance(v, dict):
+                        return v.get("value") or None
+                    return v or None
+
+                if not finding.get("record_name"):
+                    for fname in ("PathOnClient", "Title", "Name"):
+                        val = _fv(fname)
+                        if val:
+                            finding["record_name"] = val
+                            break
+                if not finding.get("owner_id"):
+                    for fname in ("LastModifiedById", "CreatedById", "OwnerId"):
+                        val = _fv(fname)
+                        if val:
+                            finding["owner_id"] = val
+                            break
+            except Exception:
+                logger.exception(f"IDOR enrich error for {record_id}")

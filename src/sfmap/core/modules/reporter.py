@@ -500,20 +500,22 @@ def _section_idor(output_dir: str, target: str = "") -> str:
         dl_path = _DOWNLOAD_PATHS.get(prefix)
         if dl_path and base_url:
             url = f"{base_url}{dl_path}{raw_id}"
-            download_cell = f'<a href="{_h(url)}" target="_blank" rel="noopener noreferrer">{_h(url)}</a>'
+            download_cell = f'<a href="{_h(url)}" target="_blank" rel="noopener noreferrer">download</a>'
         elif dl_path:
             download_cell = f'<code>{dl_path}{rec_id}</code>'
         else:
             download_cell = '<span class="muted">N/A</span>'
         record_name = _h(f.get("record_name") or "")
         name_cell = f"<code>{record_name}</code>" if record_name else '<span class="muted">unknown</span>'
-        rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", name_cell, download_cell])
+        owner_id = _h(f.get("owner_id") or "")
+        owner_cell = f"<code>{owner_id}</code>" if owner_id else '<span class="muted">-</span>'
+        rows.append([f"<code>{rec_id}</code>", f"<code>{obj}</code>", name_cell, owner_cell, download_cell])
 
     body = (
         f"<p>{len(findings)} record ID(s) responded with data when fetched without authentication.</p>"
-        + _table(["Record ID", "Object", "Name", "Download"], rows)
+        + _table(["Record ID", "Object", "Name", "Owner ID", "Download"], rows)
     )
-    return _card("idor", "IDOR: Unauthenticated getRecord", body)
+    return _card("idor", "IDOR: Direct record access without authorization", body)
 
 
 def _section_chatter(output_dir: str) -> str:
@@ -1024,6 +1026,96 @@ def _section_graphql_schema(output_dir: str) -> str:
     return _card("graphql-schema", "GraphQL: Introspection", body)
 
 
+_SKIP_FIELDS: frozenset[str] = frozenset({"sobjectType", "attributes"})
+_SKIP_SUFFIXES: tuple[str, ...] = ("__f", "__l")
+
+_PRIORITY = (
+    "InterventionRequest__c", "Contact", "QuoteRequest__c",
+    "Technical_Document__c", "Case", "Case_Document__c",
+    "Quote__c", "Contract__c", "CustomerCommunication__c",
+)
+
+
+def _section_record_browser(output_dir: str) -> str:
+    base = Path(output_dir)
+    pages: dict[str, list[dict]] = {}
+
+    for p in sorted(base.glob("*__page*.json")):
+        if m := re.match(r"^(.+)__page\d+\.json$", p.name):
+            obj = m.group(1)
+            data = _load_json(p)
+            records = []
+            if isinstance(data, dict):
+                records = data.get("records", data.get("result", []))
+            elif isinstance(data, list):
+                records = data
+            if records:
+                pages.setdefault(obj, []).extend(records)
+
+    if not pages:
+        return ""
+
+    def _priority_key(name: str) -> tuple[int, str]:
+        try:
+            return (list(_PRIORITY).index(name), name)
+        except ValueError:
+            return (len(_PRIORITY), name)
+
+    parts: list[str] = []
+    for obj in sorted(pages, key=_priority_key):
+        records = pages[obj]
+        total = len(records)
+        if not records:
+            continue
+
+        all_keys = [
+            k for k in records[0].keys()
+            if k not in _SKIP_FIELDS and not any(k.endswith(s) for s in _SKIP_SUFFIXES)
+        ]
+
+        def _non_null_count(key: str) -> int:
+            return sum(1 for r in records if r.get(key) not in (None, "", {}))
+
+        top_keys = sorted(all_keys, key=_non_null_count, reverse=True)[:12]
+        if not top_keys:
+            continue
+
+        load = min(total, 200)
+        table_id = f"rbr-{_h(obj)}"
+        header_row = "".join(f"<th>{_h(k)}</th>" for k in top_keys)
+        body_rows = []
+        for rec in records[:load]:
+            cells = []
+            for k in top_keys:
+                v = rec.get(k)
+                if isinstance(v, dict):
+                    v = v.get("value", v)
+                val = _h(str(v)) if v is not None else ""
+                cells.append(f"<td>{val}</td>")
+            body_rows.append(f"<tr>{''.join(cells)}</tr>")
+
+        total_display = f"{total:,}" if total <= load else f"{load:,}+ of {total:,}"
+
+        parts.append(
+            f'<div class="card rbr-card" id="rbr-card-{_h(obj)}">'
+            f'<div class="card-title rbr-card-title">'
+            f'<button class="rbr-fold" aria-label="Toggle">&#9662;</button>'
+            f"{_h(obj)}"
+            f'<span class="card-count">{total_display}</span></div>'
+            f'<div class="card-body">'
+            f'<div class="rbr-toolbar">'
+            f'<input class="rbr-search" data-table="{table_id}" placeholder="Filter&#8230;" autocomplete="off">'
+            f'<span class="rbr-shown" id="rbr-shown-{_h(obj)}">{load}</span> row(s)'
+            f"</div>"
+            f'<div class="table-wrap">'
+            f'<table id="{table_id}"><thead><tr>{header_row}</tr></thead>'
+            f"<tbody>{''.join(body_rows)}</tbody></table>"
+            f"</div></div></div>"
+        )
+
+    return "\n".join(parts)
+
+
 # ── Report generator ──────────────────────────────────────────────────────────
 
 
@@ -1170,9 +1262,17 @@ def generate(output_dir: str, target: str | None = None) -> str:
         identity_dirs = [base]
         report_dir = base.parent if base.parent.is_dir() else base
     else:
-        identity_dirs = sorted(
-            d for d in base.iterdir() if d.is_dir() and _is_identity_dir(d)
-        )
+        candidates: list[Path] = []
+        for d in base.iterdir():
+            if not d.is_dir():
+                continue
+            if _is_identity_dir(d):
+                candidates.append(d)
+            elif d.name == "users":
+                for sub in sorted(d.iterdir()):
+                    if sub.is_dir() and _is_identity_dir(sub):
+                        candidates.append(sub)
+        identity_dirs = sorted(candidates, key=lambda p: (p.name != "guest", p.name))
         report_dir = base
 
     if not identity_dirs:
@@ -1207,6 +1307,20 @@ def generate(output_dir: str, target: str | None = None) -> str:
         )
         tab_panels.append(
             _build_tab_panel(id_dir, display_name, tab_id, is_active, guest_dir, target)
+        )
+
+    records_content = "\n".join(
+        _section_record_browser(str(d)) for d in identity_dirs
+    )
+    if records_content.strip():
+        records_tab_id = f"tab-{len(identity_dirs)}"
+        tab_btns.append(
+            f'<button class="tab-btn" data-target="{records_tab_id}">Records</button>'
+        )
+        tab_panels.append(
+            f'<div id="{records_tab_id}" class="tab-panel">'
+            f'<div class="layout">{records_content}</div>'
+            f"</div>"
         )
 
     tab_bar = '<div class="tab-bar"><div class="tab-bar-inner">' + "".join(tab_btns) + "</div></div>"
