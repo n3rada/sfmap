@@ -1,6 +1,8 @@
 # sfmap
 
-Chart every accessible surface of a Salesforce Experience Cloud deployment: enumerate objects, probe access controls, extract records, and detect misconfigurations. Works from an authenticated session or as a guest.
+**Salesforce Experience Cloud security assessment toolkit.** Enumerate guest and authenticated attack surfaces, probe IDOR, test CRUD and injection vectors, map REST and Aura endpoints, and generate a self-contained HTML report.
+
+Works against any Experience Cloud portal from a guest session, an authenticated community user, or both.
 
 New to Salesforce internals? Read [SALESFORCE_101.md](SALESFORCE_101.md) before starting an assessment.
 
