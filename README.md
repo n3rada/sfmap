@@ -40,7 +40,7 @@ Lightning: always authenticated, no guest access
 Lightning: run sfmap TARGET lightning assess
 ```
 
-The profile is used by `assess` to route automatically — no surface argument needed on subsequent runs:
+The profile is used by `assess` to route automatically, no surface argument needed on subsequent runs:
 
 ```bash
 sfmap TARGET assess
@@ -64,7 +64,7 @@ Public-facing community portals built on `siteforce:communityApp`. Accessible at
 
 ### Lightning Experience (`lightning` surface)
 
-Internal Salesforce org UI built on `one:one`. Accessible at `/aura` on `my.salesforce.com` or `my.salesforce-setup.com`. Always authenticated — no guest access. This is the surface for internal CRM orgs, integration platforms, and orgs exposing APIs to internal users.
+Internal Salesforce org UI built on `one:one`. Accessible at `/aura` on `my.salesforce.com` or `my.salesforce-setup.com`. Always authenticated, no guest access. This is the surface for internal CRM orgs, integration platforms, and orgs exposing APIs to internal users.
 
 ## Credentials
 
@@ -244,7 +244,7 @@ sfmap TARGET lightning objects       # enumerate visible objects (experimental)
 sfmap report -o salesforce_TARGET
 ```
 
-Generates a self-contained `report.html`. Open directly in a browser — no server required.
+Generates a self-contained `report.html`. Open directly in a browser, no server required.
 
 ## Output
 

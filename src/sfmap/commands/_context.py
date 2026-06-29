@@ -198,9 +198,24 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
     Burp export (burp.txt) is supported as a primary credential source.
     """
     from .detect import ensure_surface_profile
+    import httpx as _httpx
+    from ..core.utils import detect as _detect_mod
+    from ..core.client import USER_AGENT as _UA
+
     url = resolve_lightning_url(args.url)
     logger.info(f"Surface: Lightning Aura → {url}")
-    ensure_surface_profile(args.url, "lightning")
+
+    profile_path = Path(storage.output_dir(args.url)) / "surface_profile.json"
+    if not profile_path.exists():
+        http = _httpx.Client(verify=False, timeout=10.0, follow_redirects=True, headers={"User-Agent": _UA})
+        try:
+            result = _detect_mod.probe_lightning(args.url, http)
+        finally:
+            http.close()
+        if not result["found"]:
+            logger.error(f"Lightning Aura endpoint not found at {url}, is this the right surface?")
+            raise SystemExit(1)
+        ensure_surface_profile(args.url, "lightning")
 
     # Burp: parse first so individual files can fall back to it
     burp_cookie: str | None = None
