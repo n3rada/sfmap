@@ -60,9 +60,8 @@ _ASSESS_DEFAULTS: list[tuple[str, object]] = [
 def cmd_assess(args: argparse.Namespace) -> int:
     profile = load_surface_profile(args.url)
     if profile:
-        ec_found = profile.get("experience_cloud", {}).get("found", True)
-        lt_found = profile.get("lightning", {}).get("found", False)
-        if lt_found and not ec_found:
+        surfaces = profile.get("surfaces", [])
+        if "lightning" in surfaces and "experience_cloud" not in surfaces:
             logger.info("assess: surface profile says Lightning only, routing to lightning assess")
             from .lightning import cmd_lightning_assess
             return cmd_lightning_assess(args)

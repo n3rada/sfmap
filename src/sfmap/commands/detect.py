@@ -27,6 +27,19 @@ def load_surface_profile(url: str) -> dict | None:
         return None
 
 
+def ensure_surface_profile(url: str, surface: str) -> None:
+    """Write a minimal surface profile for url if none exists yet.
+
+    Explicit surface commands call this so that assess routing works
+    even when detect was never run.
+    """
+    p = Path(output_dir(url)) / SURFACE_PROFILE_FILE
+    if p.exists():
+        return
+    save_json(p, {"target": url, "surfaces": [surface]})
+    logger.debug(f"Surface profile created from explicit surface: {surface}")
+
+
 def cmd_detect(args: argparse.Namespace) -> int:
     raw = args.url or ""
     if not raw:
@@ -49,18 +62,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
     _report_ec(ec, raw)
     _report_lightning(lt, raw)
 
-    profile = {
-        "target": raw,
-        "experience_cloud": {
-            "found": ec["found"],
-            "endpoint": ec.get("endpoint"),
-            "guest_objects": ec.get("guest_objects"),
-        },
-        "lightning": {
-            "found": lt["found"],
-            "endpoint": lt.get("endpoint"),
-        },
-    }
+    surfaces = []
+    if ec["found"]:
+        surfaces.append("experience_cloud")
+    if lt["found"]:
+        surfaces.append("lightning")
+
+    profile: dict = {"target": raw, "surfaces": surfaces}
+    if ec["found"] and ec.get("guest_objects") is not None:
+        profile["guest_objects"] = ec["guest_objects"]
+
     root = output_dir(raw)
     profile_path = Path(root) / SURFACE_PROFILE_FILE
     save_json(profile_path, profile)

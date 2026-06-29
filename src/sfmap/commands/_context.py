@@ -71,8 +71,10 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
 
 
 def _build_session(args: argparse.Namespace) -> Session:
+    from .detect import ensure_surface_profile
     url = common.resolve_url(args.url)
     logger.info(f"Surface: Experience Cloud Aura → {url}")
+    ensure_surface_profile(args.url, "experience_cloud")
 
     raw_context = args.context or "@ctx.json"
     extracted_token: str | None = None
@@ -195,8 +197,10 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
     to lightning_ctx.json and is never auto-extracted (requires a live sid session).
     Burp export (burp.txt) is supported as a primary credential source.
     """
+    from .detect import ensure_surface_profile
     url = resolve_lightning_url(args.url)
     logger.info(f"Surface: Lightning Aura → {url}")
+    ensure_surface_profile(args.url, "lightning")
 
     # Burp: parse first so individual files can fall back to it
     burp_cookie: str | None = None

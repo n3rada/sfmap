@@ -1,8 +1,6 @@
 # sfmap
 
-**Salesforce Experience Cloud security assessment toolkit.** Enumerate guest and authenticated attack surfaces, probe IDOR, test CRUD and injection vectors, map REST and Aura endpoints, and generate a self-contained HTML report.
-
-Works against any Experience Cloud portal from a guest session, an authenticated community user, or both.
+**Salesforce security assessment toolkit.** Covers both Experience Cloud community portals and internal Lightning Experience orgs. Enumerate guest and authenticated attack surfaces, probe IDOR, test CRUD and injection vectors, map REST and Aura endpoints, and generate a self-contained HTML report.
 
 New to Salesforce internals? Read [SALESFORCE_101.md](SALESFORCE_101.md) before starting an assessment.
 
@@ -24,59 +22,114 @@ Run without installing:
 uvx --from git+https://github.com/n3rada/sfmap.git sfmap --help
 ```
 
+## Surface Detection
+
+Run sfmap against any target with no surface argument and it probes both Aura endpoints, logs what it finds, and saves a `surface_profile.json` to the output directory:
+
+```bash
+sfmap TARGET
+```
+
+Example output:
+
+```
+Experience Cloud: not detected (https://TARGET/s/sfsites/aura)
+Lightning: detected at https://TARGET/aura
+Lightning: app=one:one fwuid=...
+Lightning: always authenticated, no guest access
+Lightning: run sfmap TARGET lightning assess
+```
+
+The profile is used by `assess` to route automatically — no surface argument needed on subsequent runs:
+
+```bash
+sfmap TARGET assess
+# reads surface_profile.json, routes to lightning assess if Lightning-only
+```
+
+If you already know the surface, skip detection and run any command directly. The profile is written on first use:
+
+```bash
+sfmap TARGET lightning controllers   # writes surface_profile.json: ["lightning"]
+sfmap TARGET aura objects            # writes surface_profile.json: ["experience_cloud"]
+```
+
+## Surfaces
+
+sfmap covers two distinct Aura surfaces.
+
+### Experience Cloud (`aura` surface)
+
+Public-facing community portals built on `siteforce:communityApp`. Accessible at `/s/sfsites/aura`. Supports both guest (unauthenticated) and authenticated assessment. This is the surface for customer and partner portals.
+
+### Lightning Experience (`lightning` surface)
+
+Internal Salesforce org UI built on `one:one`. Accessible at `/aura` on `my.salesforce.com` or `my.salesforce-setup.com`. Always authenticated — no guest access. This is the surface for internal CRM orgs, integration platforms, and orgs exposing APIs to internal users.
+
 ## Credentials
 
-Salesforce exposes two surfaces with different credential requirements.
+### Experience Cloud
 
-### Aura surface (community portal)
-
-Authenticated requests need a session token and cookie. `ctx.json` (the Aura framework context) is auto-extracted if absent.
+`ctx.json` (the Aura framework context) is auto-extracted if absent.
 
 | File | CLI flag | Value | Required |
 |---|---|---|---|
 | `ctx.json` | `-C` | `aura.context` JSON | auto-extracted if missing |
-| `token.txt` | `-T` | `aura.token` JWT from the POST body | optional |
+| `token.txt` | `-T` | `aura.token` from the POST body | optional |
 | `cookies.txt` | `--cookie` | Raw `Cookie:` header | yes (authenticated) |
 
-The **session cookie** is what authenticates a Salesforce session. The `aura.token` is a CSRF token only; Salesforce issues one even to unauthenticated visitors. A run with no cookie (regardless of token) is treated as guest and output goes to `guest/`.
-
-Capture from DevTools: Network tab, filter by `aura`, click any POST to `/s/sfsites/aura`, copy the `Cookie:` header (for `cookies.txt`) and the `aura.token` field (for `token.txt`).
-
-When credential files are present in the working directory, no flags are needed:
-
-```bash
-sfmap target.my.site.com surface exposure
-```
+The session cookie authenticates the session. Without it, every command runs as an unauthenticated guest and output goes to `guest/`.
 
 > [!TIP]
 > Drop a Burp Suite XML export or raw HTTP request as `burp.txt` in the working directory. sfmap parses it automatically and uses it in preference over `cookies.txt` and `token.txt`.
 
 > [!NOTE]
-> `aura.token` expiry is session-based, not timestamp-based. A token from an active browser session covers a full assessment. If requests return `Invalid token`, capture a fresh one.
+> `aura.token` expiry is session-based, not timestamp-based. If requests return `Invalid token`, capture a fresh one.
 
-> [!NOTE]
-> If no credentials are found, every command runs as an unauthenticated guest automatically.
+### Lightning Experience
+
+Lightning has no guest mode. All three files are required.
+
+| File | CLI flag | Value |
+|---|---|---|
+| `lightning_ctx.json` | `-C` | `aura.context` JSON from a POST to `/aura` |
+| `token.txt` | `-T` | `aura.token` from the POST body |
+| `cookies.txt` | `--cookie` | Raw `Cookie:` header (`sid=` required) |
+
+Capture from DevTools: Network tab, filter by `/aura`, click any POST, copy the `Cookie:` header and the `aura.context` and `aura.token` fields from the POST body.
+
+> [!TIP]
+> Drop a Burp capture of a Lightning POST as `burp.txt`. sfmap parses cookie, token, and context automatically.
 
 ### REST API surface
 
-`rest soql`, `rest tooling`, and the Bulk API require an OAuth Bearer token from a **full Salesforce license user** (internal org user, not a community member). Community sessions are blocked at the platform level regardless of credentials.
+`rest soql`, `rest tooling`, and the Bulk API require an OAuth Bearer token from a full Salesforce license user.
 
-Capture from DevTools on a session logged into `yourdomain.my.salesforce.com` (not the community portal):
+| File | CLI flag | Value |
+|---|---|---|
+| `bearer.txt` | `--bearer` | OAuth Bearer token from `/services/data/` requests |
 
 ```bash
-echo "00DAP..." > bearer.txt
-sfmap target.my.site.com --bearer @bearer.txt rest soql
+sfmap TARGET rest soql
+sfmap TARGET rest tooling
 ```
 
 ## Surfaces and Commands
 
 ```
+sfmap URL                 (auto-detect surfaces and print next steps)
+sfmap URL detect          (same as above, explicit)
+
 sfmap URL aura    objects | dump | record | info | crud | inject | related |
                   follow | idor | apex | controllers | flow | network |
                   bootstrap | views
+
+sfmap URL lightning   controllers | objects | assess
+
 sfmap URL rest    graphql introspect | query | dump
                   content enum | download | distribution
                   static | apexrest | soql | sosl | tooling | chatter
+
 sfmap URL surface exposure
 sfmap URL files   download ID
 sfmap URL assess
@@ -88,26 +141,40 @@ sfmap     report  -o DIR
 
 ## Assessment Runbook
 
-Replace `TARGET` with your target domain throughout.
+### Step 1: Detect
 
-**Run each phase twice:**
+```bash
+sfmap TARGET
+```
 
-1. **Authenticated**: with `token.txt`/`cookies.txt` (or `burp.txt`) present. Output lands in `salesforce_<TARGET>/<username>/`.
-2. **Guest**: no credential files present. Output lands in `salesforce_<TARGET>/guest/`. The report then shows both tabs side by side.
+Identifies which surfaces are present and saves `surface_profile.json`. Skip this if you already know the surface.
 
-`ctx.json` is optional: if absent, sfmap auto-extracts the Aura context from the target and saves it for subsequent runs.
-
-Route all traffic through Burp with `--proxy` appended to any command.
-
-### Full automated assessment (recommended)
+### Step 2: Assess
 
 ```bash
 sfmap TARGET assess
 ```
 
-Runs all phases in sequence, skips phases already completed (sentinel files are checked), and generates the HTML report automatically at the end. Equivalent to running every phase below manually.
+Routes automatically based on `surface_profile.json`. Runs all applicable phases in sequence, skips completed ones (sentinel files are checked), and generates the HTML report at the end.
 
-### Manual phase-by-phase
+For Lightning orgs, place credential files in the working directory first:
+
+```
+lightning_ctx.json
+cookies.txt
+token.txt
+bearer.txt   (optional, enables REST phases)
+```
+
+Then run:
+
+```bash
+sfmap TARGET assess
+```
+
+### Experience Cloud: manual phase-by-phase
+
+Run each phase twice: once authenticated (with `cookies.txt` present, output to `users/<username>/`) and once as guest (no credentials, output to `guest/`).
 
 #### Phase 1: Surface Reconnaissance
 
@@ -164,20 +231,26 @@ sfmap TARGET rest content download
 sfmap TARGET rest content distribution
 ```
 
+### Lightning: manual phase-by-phase
+
+```bash
+sfmap TARGET lightning controllers   # fuzz aura:// framework controllers
+sfmap TARGET lightning objects       # enumerate visible objects (experimental)
+```
+
 ### Report
 
 ```bash
 sfmap report -o salesforce_TARGET
 ```
 
-Generates a self-contained `report.html` with one tab per identity (guest and authenticated), an IDOR findings table with owner attribution, and a browsable Record Browser for all dumped objects. Open directly in a browser — no server required.
+Generates a self-contained `report.html`. Open directly in a browser — no server required.
 
 ## Output
 
-All output goes to a directory derived from the target URL (override with `-o`):
-
 ```
 salesforce_{host}/
+  surface_profile.json        ← detected surfaces (written by detect or first command)
   {identity}/
     exposure_summary.json
     crud_probe.json
@@ -187,6 +260,8 @@ salesforce_{host}/
     staticresource_summary.json, staticresource_*.bin
     network_config.json
     flow_hits.json
+    lightning_controller_hits.json
+    lightning_objects.json
     {Object}__page{N}.json
     graphql/
     chatter/
@@ -198,7 +273,9 @@ salesforce_{host}/
 
 ## aura.context
 
-Required for every Aura request. Salesforce pushes framework builds three times a year; re-capture when every request returns `exceptionEvent: true`.
+Required for every Aura request. Salesforce pushes framework builds three times a year; re-capture when requests return `exceptionEvent: true`.
+
+Experience Cloud:
 
 ```json
 {
@@ -207,6 +284,18 @@ Required for every Aura request. Salesforce pushes framework builds three times 
   "app":    "siteforce:communityApp",
   "loaded": { "APPLICATION@markup://siteforce:communityApp": "1652_-1TRj7Ek7" },
   "dn": [], "globals": {}, "uad": true
+}
+```
+
+Lightning Experience:
+
+```json
+{
+  "mode":   "PROD",
+  "fwuid":  "cmpKNld...",
+  "app":    "one:one",
+  "loaded": { "APPLICATION@markup://one:one": "4146_iERZh3UX..." },
+  "dn": [], "globals": { "setupAppContextId": "all" }, "uad": true
 }
 ```
 
