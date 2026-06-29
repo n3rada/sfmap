@@ -13,7 +13,7 @@ from ..core.utils.storage import OutputWriter
 from ._context import _build_lightning_session, _resolve_output_dir
 from ._phase_runner import run_phase_loop
 
-# Sentinel filenames — one per phase, used by cmd_lightning_assess to detect completed work.
+# Sentinel filenames, one per phase, used by cmd_lightning_assess to detect completed work.
 # Keep in sync with the actual save() calls in each cmd_* handler below.
 SENTINEL_CONTROLLERS = "lightning_controller_hits.json"
 SENTINEL_OBJECTS = "lightning_objects.json"
@@ -45,8 +45,7 @@ def cmd_lightning_controllers(args: argparse.Namespace) -> int:
             {"callable": callable_ones, "exists_denied": exists_denied},
         )
         logger.success(
-            f"{len(callable_ones)} callable, {len(exists_denied)} access-denied "
-            f"— saved to {path}"
+            f"{len(callable_ones)} callable, {len(exists_denied)} access-denied, saved to {path}"
         )
     else:
         logger.info("No Lightning controller hits found")

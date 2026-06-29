@@ -8,12 +8,13 @@ import re
 from pathlib import Path
 
 # Third-party imports
+import httpx
 from loguru import logger
 
 # Local imports
-from ..core.client import AuraClient, AuraSessionExpired
+from ..core.client import AuraClient, AuraSessionExpired, USER_AGENT
 from ..core.session import Session
-from ..core.utils import autocontext, identity as identity_mod
+from ..core.utils import autocontext, detect as detect_mod, identity as identity_mod
 from ..core.utils import burp as burp_mod, common, storage
 from ..core.utils.common import resolve_lightning_url
 
@@ -73,7 +74,7 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
 def _build_session(args: argparse.Namespace) -> Session:
     from .detect import ensure_surface_profile
     url = common.resolve_url(args.url)
-    logger.info(f"Surface: Experience Cloud Aura → {url}")
+    logger.info(f"Surface: Experience Cloud Aura: {url}")
     ensure_surface_profile(args.url, "experience_cloud")
 
     raw_context = args.context or "@ctx.json"
@@ -198,18 +199,15 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
     Burp export (burp.txt) is supported as a primary credential source.
     """
     from .detect import ensure_surface_profile
-    import httpx as _httpx
-    from ..core.utils import detect as _detect_mod
-    from ..core.client import USER_AGENT as _UA
 
     url = resolve_lightning_url(args.url)
-    logger.info(f"Surface: Lightning Aura → {url}")
+    logger.info(f"Surface: Lightning Aura: {url}")
 
     profile_path = Path(storage.output_dir(args.url)) / "surface_profile.json"
     if not profile_path.exists():
-        http = _httpx.Client(verify=False, timeout=10.0, follow_redirects=True, headers={"User-Agent": _UA})
+        http = httpx.Client(verify=False, timeout=10.0, follow_redirects=True, headers={"User-Agent": USER_AGENT})
         try:
-            result = _detect_mod.probe_lightning(args.url, http)
+            result = detect_mod.probe_lightning(args.url, http)
         finally:
             http.close()
         if not result["found"]:
@@ -267,7 +265,7 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
                 logger.error(f"context: not valid JSON: {exc}")
                 raise SystemExit(1) from exc
 
-    # Cookie: required — Lightning has no guest surface
+    # Cookie: required, Lightning has no guest surface
     cookie_cli = getattr(args, "cookie", None)
     if cookie_cli:
         cookie = _resolve_file_arg(cookie_cli, "cookies.txt", "cookie")
@@ -278,13 +276,13 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
 
     if not cookie:
         logger.error(
-            "Cookie is required for the lightning surface — Lightning has no guest access. "
+            "Cookie is required for the lightning surface. Lightning has no guest access. "
             "Capture the Cookie header from a Lightning session and save to cookies.txt, "
             "or drop a Burp capture as burp.txt."
         )
         raise SystemExit(1)
 
-    # Token: required — Lightning never sends 'undefined'
+    # Token: required, Lightning never sends 'undefined'
     token_cli = getattr(args, "token", None)
     if token_cli:
         token_raw = _resolve_file_arg(token_cli, "token.txt", "token")
