@@ -2,6 +2,7 @@
 from urllib.parse import urlparse
 
 _AURA_PATH = "/s/sfsites/aura"
+_LIGHTNING_AURA_PATH = "/aura"
 
 
 def resolve_url(raw: str) -> str:
@@ -22,6 +23,19 @@ def resolve_url(raw: str) -> str:
     if not raw.endswith("/aura"):
         raw = raw + _AURA_PATH
     return raw
+
+
+def resolve_lightning_url(raw: str) -> str:
+    """
+    Accept a domain or URL and return the Lightning Aura endpoint (always /aura).
+
+    Works for both Lightning Experience (my.salesforce.com) and
+    Setup Lightning (my.salesforce-setup.com).
+    """
+    if not raw.startswith(("http://", "https://")):
+        raw = "https://" + raw
+    parsed = urlparse(raw)
+    return f"{parsed.scheme}://{parsed.netloc}{_LIGHTNING_AURA_PATH}"
 
 
 def default_output_dir(url: str) -> str:

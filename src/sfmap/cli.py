@@ -25,6 +25,8 @@ from .commands.surface import cmd_exposure
 from .commands.files import cmd_download
 from .commands.assess import cmd_assess
 from .commands.report import cmd_report
+from .commands.lightning import cmd_lightning_assess, cmd_lightning_controllers, cmd_lightning_objects
+from .commands.detect import cmd_detect
 from .core.utils import logbook
 
 
@@ -107,7 +109,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="aura.context JSON string or @file. Default: @ctx.json.",
     )
 
-    surfaces = parser.add_subparsers(dest="surface", required=True)
+    surfaces = parser.add_subparsers(dest="surface", required=False)
+
+    # -- detect --------------------------------------------------------------
+    p_detect = surfaces.add_parser(
+        "detect",
+        help="Probe all Aura surfaces without credentials and print next steps (default when no surface given)",
+    )
+    p_detect.set_defaults(func=cmd_detect)
 
     # -- aura ----------------------------------------------------------------
     p_aura = surfaces.add_parser("aura", help="Aura surface operations")
@@ -314,6 +323,38 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_args(p_chatter)
     p_chatter.set_defaults(func=cmd_chatter)
 
+    # -- lightning -----------------------------------------------------------
+    p_lightning = surfaces.add_parser(
+        "lightning",
+        help="Lightning Aura surface (one:one app — always authenticated, no guest mode)",
+    )
+    lightning_sub = p_lightning.add_subparsers(dest="lightning_command", required=True)
+
+    p_lc = lightning_sub.add_parser(
+        "controllers",
+        help="Probe Lightning Aura framework controller descriptors (aura://)",
+    )
+    _add_common_args(p_lc)
+    p_lc.add_argument(
+        "-w", "--wordlist", default=None, metavar="FILE",
+        help="Custom descriptor wordlist (default: built-in lightning_controllers.txt)",
+    )
+    p_lc.set_defaults(func=cmd_lightning_controllers)
+
+    p_lo = lightning_sub.add_parser(
+        "objects",
+        help="Enumerate visible objects via getConfigData in Lightning context (experimental)",
+    )
+    _add_common_args(p_lo)
+    p_lo.set_defaults(func=cmd_lightning_objects)
+
+    p_la = lightning_sub.add_parser(
+        "assess",
+        help="Run all Lightning phases in sequence, skipping completed ones",
+    )
+    _add_common_args(p_la)
+    p_la.set_defaults(func=cmd_lightning_assess)
+
     # -- assess --------------------------------------------------------------
     p_assess = surfaces.add_parser(
         "assess",
@@ -419,7 +460,13 @@ def main() -> int:
 
     from .core.client import AuraSessionExpired
     try:
-        return args.func(args)
+        fn = getattr(args, "func", None)
+        if fn is None:
+            if getattr(args, "url", None):
+                return cmd_detect(args)
+            build_parser().print_help()
+            return 1
+        return fn(args)
     except AuraSessionExpired as exc:
         logger.error(str(exc))
         return 1

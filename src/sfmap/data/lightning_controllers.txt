@@ -1,0 +1,72 @@
+# Lightning Aura framework controller descriptors for the one:one app surface
+# Format: full aura:// descriptor (used verbatim, no prefix expansion)
+# Target: /aura on my.salesforce.com or my.salesforce-setup.com
+
+# RecordUiController — data access, core attack surface
+aura://RecordUiController/ACTION$getObjectInfo
+aura://RecordUiController/ACTION$getObjectInfos
+aura://RecordUiController/ACTION$getRecord
+aura://RecordUiController/ACTION$getRecords
+aura://RecordUiController/ACTION$getRecordCreateDefaults
+aura://RecordUiController/ACTION$getRecordEditInfo
+aura://RecordUiController/ACTION$createRecord
+aura://RecordUiController/ACTION$updateRecord
+aura://RecordUiController/ACTION$deleteRecord
+aura://RecordUiController/ACTION$getPicklistValues
+aura://RecordUiController/ACTION$getPicklistValuesByRecordType
+aura://RecordUiController/ACTION$getListUi
+aura://RecordUiController/ACTION$searchAndFilter
+aura://RecordUiController/ACTION$getLayoutUserState
+aura://RecordUiController/ACTION$updateLayoutUserState
+aura://RecordUiController/ACTION$getRelatedListInfo
+aura://RecordUiController/ACTION$getRelatedListInfoBatch
+aura://RecordUiController/ACTION$getRelatedListRecords
+aura://RecordUiController/ACTION$getRelatedListsInfo
+aura://RecordUiController/ACTION$getRelatedListCount
+aura://RecordUiController/ACTION$getRelatedListCountBatch
+aura://RecordUiController/ACTION$getMruListUi
+aura://RecordUiController/ACTION$getListInfosByName
+aura://RecordUiController/ACTION$getRecordActions
+aura://RecordUiController/ACTION$getGlobalActions
+aura://RecordUiController/ACTION$getQuickActionDefaults
+aura://RecordUiController/ACTION$getDuplicates
+
+# SetupMetadataController — setup/configuration introspection
+aura://SetupMetadataController/ACTION$isAccessCheckEnabled
+aura://SetupMetadataController/ACTION$getMetadata
+aura://SetupMetadataController/ACTION$getSetupTree
+
+# PermissionSetController — privilege enumeration
+aura://PermissionSetController/ACTION$getPermissions
+aura://PermissionSetController/ACTION$getPermissionSetGroups
+aura://PermissionSetController/ACTION$getUserPermissions
+
+# NavigationMenuController — exposed navigation entries
+aura://NavigationMenuController/ACTION$getNavigationMenuItems
+
+# FlowRuntimeController — process automation access
+aura://FlowRuntimeController/ACTION$getFlowDefinitions
+aura://FlowRuntimeController/ACTION$getFlowInputVariables
+aura://FlowRuntimeController/ACTION$startInterviewByName
+
+# LightningExperienceThemeController — org metadata
+aura://LightningExperienceThemeController/ACTION$getNavBarItems
+
+# UserController — user self-info
+aura://UserController/ACTION$getUserInfoMap
+aura://UserController/ACTION$getCurrentUserConfig
+
+# ApexActionController — generic Apex invocation gate
+aura://ApexActionController/ACTION$execute
+
+# FileController — file/document access
+aura://FileController/ACTION$getFiles
+aura://FileController/ACTION$getFilesByRelatedRecord
+
+# ChatterController — social/collaboration data
+aura://ChatterController/ACTION$getFeed
+aura://ChatterController/ACTION$getTopics
+
+# KnowledgeController — knowledge base access
+aura://KnowledgeController/ACTION$getArticles
+aura://KnowledgeController/ACTION$getArticleContent

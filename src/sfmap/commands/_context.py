@@ -15,6 +15,7 @@ from ..core.client import AuraClient, AuraSessionExpired
 from ..core.session import Session
 from ..core.utils import autocontext, identity as identity_mod
 from ..core.utils import burp as burp_mod, common, storage
+from ..core.utils.common import resolve_lightning_url
 
 
 def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> str | None:
@@ -71,8 +72,7 @@ def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None
 
 def _build_session(args: argparse.Namespace) -> Session:
     url = common.resolve_url(args.url)
-    if url != args.url:
-        logger.debug(f"Resolved URL: {url} (from {args.url})")
+    logger.info(f"Surface: Experience Cloud Aura → {url}")
 
     raw_context = args.context or "@ctx.json"
     extracted_token: str | None = None
@@ -186,3 +186,108 @@ def _build_session(args: argparse.Namespace) -> Session:
             raise SystemExit(1) from exc
 
     return session
+
+
+def _build_lightning_session(args: argparse.Namespace) -> Session:
+    """Build a Session for the Lightning Aura surface (one:one app, always authenticated).
+
+    Lightning has no guest mode: cookie and token are both required. Context defaults
+    to lightning_ctx.json and is never auto-extracted (requires a live sid session).
+    Burp export (burp.txt) is supported as a primary credential source.
+    """
+    url = resolve_lightning_url(args.url)
+    logger.info(f"Surface: Lightning Aura → {url}")
+
+    # Burp: parse first so individual files can fall back to it
+    burp_cookie: str | None = None
+    burp_token: str | None = None
+    burp_context_str: str | None = None
+    burp_path = Path("burp.txt")
+    if burp_path.exists():
+        burp_cookie, burp_token, burp_context_str = burp_mod.parse_burp_request(burp_path)
+        if burp_cookie:
+            logger.info(f"burp: loaded cookie ({len(burp_cookie)} chars)")
+        if burp_token:
+            logger.info("burp: loaded aura.token")
+        if burp_context_str:
+            logger.info("burp: loaded aura.context")
+
+    # Context: defaults to lightning_ctx.json, never auto-extracted
+    raw_context = args.context or "@lightning_ctx.json"
+    if burp_context_str and not args.context:
+        try:
+            context = json.loads(burp_context_str)
+            logger.info("context: loaded from burp.txt")
+        except json.JSONDecodeError:
+            burp_context_str = None
+
+    if not burp_context_str or args.context:
+        if raw_context.startswith("@"):
+            path = Path(raw_context[1:])
+            if not path.exists():
+                logger.error(
+                    f"Lightning context not found at '{path}'. "
+                    "Capture aura.context from a POST to /aura in DevTools "
+                    "and save it as lightning_ctx.json (or pass it with -C)."
+                )
+                raise SystemExit(1)
+            try:
+                context = json.loads(path.read_text(encoding="utf-8-sig").strip())
+                logger.info(f"context: loaded from {path}")
+            except json.JSONDecodeError as exc:
+                logger.error(f"context: {path} is not valid JSON: {exc}")
+                raise SystemExit(1) from exc
+            except OSError as exc:
+                logger.error(f"context: cannot read {path}: {exc}")
+                raise SystemExit(1) from exc
+        else:
+            try:
+                context = json.loads(raw_context)
+                logger.info("context: loaded from command-line argument")
+            except json.JSONDecodeError as exc:
+                logger.error(f"context: not valid JSON: {exc}")
+                raise SystemExit(1) from exc
+
+    # Cookie: required — Lightning has no guest surface
+    cookie_cli = getattr(args, "cookie", None)
+    if cookie_cli:
+        cookie = _resolve_file_arg(cookie_cli, "cookies.txt", "cookie")
+    elif burp_cookie:
+        cookie = burp_cookie
+    else:
+        cookie = _resolve_file_arg(None, "cookies.txt", "cookie")
+
+    if not cookie:
+        logger.error(
+            "Cookie is required for the lightning surface — Lightning has no guest access. "
+            "Capture the Cookie header from a Lightning session and save to cookies.txt, "
+            "or drop a Burp capture as burp.txt."
+        )
+        raise SystemExit(1)
+
+    # Token: required — Lightning never sends 'undefined'
+    token_cli = getattr(args, "token", None)
+    if token_cli:
+        token_raw = _resolve_file_arg(token_cli, "token.txt", "token")
+    elif burp_token:
+        token_raw = burp_token
+    else:
+        token_raw = _resolve_file_arg(None, "token.txt", "token")
+
+    if not token_raw:
+        logger.error(
+            "aura.token is required for the lightning surface. "
+            "Capture the aura.token field from a POST to /aura and save to token.txt, "
+            "or drop a Burp capture as burp.txt."
+        )
+        raise SystemExit(1)
+
+    bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt", "bearer")
+
+    return Session(
+        url=url,
+        context=context,
+        token=token_raw,
+        cookie=cookie,
+        bearer_token=bearer,
+    )
