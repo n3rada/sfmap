@@ -10,7 +10,7 @@ from loguru import logger
 from ..core.client import AuraClient
 from ..core.modules import config, enum, lightning_controllers
 from ..core.utils.storage import OutputWriter
-from ._context import _build_lightning_session, _resolve_output_dir
+from ._context import _build_lightning_session, _build_rest_only_lightning_session, _resolve_output_dir
 from ._phase_runner import run_phase_loop
 
 # Sentinel filenames, one per phase, used by cmd_lightning_assess to detect completed work.
@@ -32,7 +32,7 @@ _ASSESS_DEFAULTS: list[tuple[str, object]] = [
 
 def cmd_lightning_controllers(args: argparse.Namespace) -> int:
     session = _build_lightning_session(args)
-    out = OutputWriter(_resolve_output_dir(args, session))
+    out = OutputWriter(_resolve_output_dir(args, session, surface="lightning"))
     with AuraClient(session) as client:
         results = lightning_controllers.fuzz(
             client, wordlist_path=getattr(args, "wordlist", None)
@@ -57,7 +57,7 @@ def cmd_lightning_controllers(args: argparse.Namespace) -> int:
 
 def cmd_lightning_objects(args: argparse.Namespace) -> int:
     session = _build_lightning_session(args)
-    out = OutputWriter(_resolve_output_dir(args, session))
+    out = OutputWriter(_resolve_output_dir(args, session, surface="lightning"))
     with AuraClient(session) as client:
         objects, csp_sites = enum.list_objects_with_csp(client)
         enum._print_objects_from(objects)
@@ -74,8 +74,8 @@ def cmd_lightning_objects(args: argparse.Namespace) -> int:
 
 
 def cmd_lightning_config(args: argparse.Namespace) -> int:
-    session = _build_lightning_session(args)
-    out = OutputWriter(_resolve_output_dir(args, session))
+    session = _build_rest_only_lightning_session(args)
+    out = OutputWriter(_resolve_output_dir(args, session, surface="lightning"))
     with AuraClient(session) as client:
         results = config.run(client, session.url, out)
     return 1 if any(v > 0 for v in results.values()) else 0
@@ -83,7 +83,7 @@ def cmd_lightning_config(args: argparse.Namespace) -> int:
 
 def cmd_lightning_assess(args: argparse.Namespace) -> int:
     session = _build_lightning_session(args)
-    out_dir = _resolve_output_dir(args, session)
+    out_dir = _resolve_output_dir(args, session, surface="lightning")
 
     phases = [
         ("lightning controllers", cmd_lightning_controllers),

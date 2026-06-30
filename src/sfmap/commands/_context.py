@@ -52,13 +52,17 @@ def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> 
     return raw or None
 
 
-def _resolve_output_dir(args: argparse.Namespace, session: Session | None = None) -> str:
+def _resolve_output_dir(
+    args: argparse.Namespace,
+    session: Session | None = None,
+    surface: str = "experience_cloud",
+) -> str:
     if args.output:
         return args.output
     if not args.url:
         logger.error("URL is required when --output is not specified")
         raise SystemExit(1)
-    target_root = str(storage.init_target_dirs(args.url))
+    target_root = str(storage.init_target_dirs(args.url, surface=surface))
     label = getattr(args, "identity", None)
     display: str | None = None
     is_guest = session is None or session.is_guest
@@ -248,13 +252,22 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
             logger.info("burp: loaded aura.context")
 
     # Context: defaults to lightning_ctx.json, never auto-extracted
+    # Auto-persist from burp.txt so future runs don't need burp.txt
     raw_context = args.context or "@lightning_ctx.json"
     if burp_context_str and not args.context:
         try:
             context = json.loads(burp_context_str)
             logger.info("context: loaded from burp.txt")
+            ctx_path = Path("lightning_ctx.json")
+            if not ctx_path.exists():
+                ctx_path.write_text(json.dumps(context, indent=2), encoding="utf-8")
+                logger.info("burp: context persisted to lightning_ctx.json")
         except json.JSONDecodeError:
             burp_context_str = None
+
+    if burp_token and not Path("token.txt").exists():
+        Path("token.txt").write_text(burp_token, encoding="utf-8")
+        logger.info("burp: token persisted to token.txt")
 
     if not burp_context_str or args.context:
         if raw_context.startswith("@"):
@@ -328,6 +341,75 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
         url=url,
         context=context,
         token=token_raw,
+        cookie=cookie,
+        bearer_token=bearer,
+    )
+
+
+def _build_rest_only_lightning_session(args: argparse.Namespace) -> Session:
+    """Build a minimal Session for REST-only Lightning operations (no Aura calls).
+
+    Requires only a cookie with a sid value; Aura context and token are not needed.
+    The sid is used directly as the OAuth Bearer token for REST API access.
+    """
+    url = resolve_lightning_url(args.url)
+    logger.info(f"Surface: Lightning REST (no Aura): {url}")
+
+    storage.init_target_dirs(args.url, surface="lightning")
+
+    burp_cookie: str | None = None
+    burp_path = Path("burp.txt")
+    if burp_path.exists():
+        burp_host = burp_mod.parse_burp_host(burp_path)
+        target_host = urlparse(url).netloc
+        if burp_host and burp_host != target_host:
+            logger.error(
+                f"burp.txt was captured from {burp_host!r} but target is {target_host!r}. "
+                "Capture a fresh request from the correct domain."
+            )
+            raise SystemExit(1)
+        burp_cookie, _, _ = burp_mod.parse_burp_request(burp_path)
+        if burp_cookie:
+            logger.info(f"burp: loaded cookie ({len(burp_cookie)} chars)")
+
+    cookie_cli = getattr(args, "cookie", None)
+    if cookie_cli:
+        cookie = _resolve_file_arg(cookie_cli, "cookies.txt", "cookie")
+    elif burp_cookie:
+        cookie = burp_cookie
+    else:
+        cookie = _resolve_file_arg(None, "cookies.txt", "cookie")
+
+    if not cookie:
+        logger.error(
+            "Cookie required. Pass --cookie 'sid=VALUE' or save to cookies.txt."
+        )
+        raise SystemExit(1)
+
+    bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt", "bearer")
+    if not bearer:
+        sid = _sid_from_cookie(cookie)
+        if sid:
+            bearer = sid
+            logger.info("bearer: derived from sid cookie")
+        else:
+            logger.error("No 'sid' key found in cookie; cannot derive Bearer token.")
+            raise SystemExit(1)
+
+    dummy_context: dict = {
+        "mode": "PROD",
+        "fwuid": "0",
+        "app": "one:one",
+        "loaded": {},
+        "dn": [],
+        "globals": {},
+        "uad": True,
+    }
+
+    return Session(
+        url=url,
+        context=dummy_context,
+        token="rest-only",
         cookie=cookie,
         bearer_token=bearer,
     )

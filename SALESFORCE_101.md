@@ -153,6 +153,8 @@ Security relevance: `aura://RecordUiController` exposes full CRUD on any object 
 
 The `aura.context` for Lightning uses `app: "one:one"` and a different `fwuid` than Experience Cloud. The framework version must match the live org; a mismatch returns a version error that leaks the real `fwuid`.
 
+The `sid` cookie value is the OAuth access token for the session. It can be used directly as a Bearer token for REST API calls on the same domain: `Authorization: Bearer <sid value>`. This works for Chatter and identity endpoints regardless of profile permissions. SOQL and Tooling additionally require the **API Enabled** system permission on the user's profile.
+
 ## 6. REST API Surfaces
 
 In addition to Aura, the following REST endpoints are active on Salesforce deployments:
@@ -162,8 +164,8 @@ In addition to Aura, the following REST endpoints are active on Salesforce deplo
 | `/services/data/v{version}/graphql` | Optional (guest if API Enabled) | GraphQL uiapi; queryable via `EntityDefinition` even with introspection disabled |
 | `/services/apexrest/<path>` | Optional | Custom REST endpoints exposed via `@RestResource` Apex classes |
 | `/chatter/` | Optional | Chatter REST API; file upload, feeds, groups |
-| `/services/data/v{version}/query?q=<SOQL>` | Bearer token | Standard SOQL query API; requires internal OAuth session |
-| `/services/data/v{version}/tooling/` | Bearer token | Apex source code, metadata; requires internal session |
+| `/services/data/v{version}/query?q=<SOQL>` | Bearer token + API Enabled profile permission | Standard SOQL query API; requires internal OAuth session and API Enabled on the user's profile |
+| `/services/data/v{version}/tooling/` | Bearer token + API Enabled | Apex source code, metadata; requires internal session |
 | `/sfc/servlet.shepherd/version/download/<ContentVersionId>` | Session cookie (or none if misconfigured) | Direct file download by ID; IDOR vector |
 | `/servlet/servlet.FileDownload?file=<Id>` | Session cookie (or none if misconfigured) | Legacy file download |
 
@@ -217,6 +219,12 @@ IDs are not sequential but are **not cryptographically random**. They are base-6
 | Broad Lightning CRUD via RecordUiController | Internal profile has OLS read/write on too many objects | Profile > Object Settings |
 | Apex bridge exposes privileged logic | `ApexActionController` invokes `without sharing` class | Review Apex class sharing model |
 | Named Credentials or External Services exposed | Tooling API readable by low-privilege user | Profile > API Enabled + restrict Tooling access |
+| Connected App with broad OAuth scopes | `full` or `api` scope granted; any connected user can exfiltrate data | Setup > Connected Apps > OAuth Policies |
+| RemoteSiteSetting with HTTP endpoint | `DisableProtocolSecurity` enabled or URL uses `http://` | Setup > Remote Site Settings |
+| Profile or PermissionSet with ModifyAllData | Grants unrestricted write across the entire org | Profile > System Permissions |
+| Active Flow running without sharing | `RunInMode = SystemModeWithoutSharing`; bypasses record-level access | Flow Builder > Run As |
+| SessionSettings with long timeout or no force-logout | Sessions persist after password change or admin revocation | Setup > Session Settings |
+| Health check score below 80 | Salesforce Security Health Check flags org-level risks | Setup > Security Center > Health Check |
 
 ## 10. Assessment Checklist
 
@@ -244,16 +252,19 @@ Key phases:
 
 Before starting:
 - [ ] Obtain an authenticated session (`sid` cookie from a full Salesforce license user)
-- [ ] Capture `aura.context` from a POST to `/aura` (save as `lightning_ctx.json`)
-- [ ] Capture `aura.token` from the same POST (save as `token.txt`)
-- [ ] Obtain a Bearer token from `/services/data/` requests for REST surface coverage
+- [ ] Drop a Burp capture of a POST to `/aura` as `burp.txt`: sfmap auto-extracts cookie, token, and context
+- [ ] On repeat runs, only a fresh `sid` is needed: `--cookie "sid=VALUE"`
+- [ ] For SOQL and Tooling phases, confirm the user's profile has **API Enabled**; the `sid` alone is rejected by the data REST API without it
 
 Key phases:
 1. **Controller probe**: fuzz `aura://` framework controllers for callable or access-denied responses
-2. **Object enumeration**: call `getConfigData` in Lightning context to list accessible objects
-3. **RecordUi CRUD**: test `createRecord` / `deleteRecord` via `aura://RecordUiController` across accessible objects
-4. **REST surface**: run SOQL and Tooling API queries to enumerate metadata, Apex source, Named Credentials, and Connected Apps
-5. **ApexREST fuzz**: wordlist-fuzz `/services/apexrest/` for custom API endpoints
+2. **Object enumeration**: call `getConfigData` in Lightning context to list accessible objects and CSP trusted sites
+3. **Config review**: query ConnectedApplications, NamedCredentials, RemoteSiteSettings, AuthProviders, Profiles, PermissionSets, active Flows, and SessionSettings; requires API Enabled (SOQL) or Tooling API access
+4. **RecordUi CRUD**: test `createRecord` / `deleteRecord` via `aura://RecordUiController` across accessible objects
+5. **REST surface**: run SOQL and Tooling API queries to enumerate Apex source, metadata, and org configuration
+6. **ApexREST fuzz**: wordlist-fuzz `/services/apexrest/` for custom API endpoints
+
+`lightning assess` runs phases 1, 2, and 3 automatically with sentinel-based skip on resume.
 
 ## 11. Reference Links
 

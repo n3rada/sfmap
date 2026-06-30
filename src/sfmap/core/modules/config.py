@@ -168,8 +168,8 @@ def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[st
         return {}
 
     if resp.status_code not in (200, 201):
-        hint = " (pass --bearer for OAuth access)" if not client.has_bearer else ""
-        logger.info(f"Config SOQL not accessible (HTTP {resp.status_code}){hint}")
+        body = resp.text[:300].strip()
+        logger.info(f"Config SOQL not accessible (HTTP {resp.status_code}): {body}")
         return {}
 
     logger.info("Config SOQL accessible, querying setup objects")

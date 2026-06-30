@@ -103,7 +103,7 @@ Capture from DevTools: Network tab, filter by `/aura`, click any POST, copy the 
 
 ### REST API surface
 
-`rest soql`, `rest tooling`, and the Bulk API require an OAuth Bearer token from a full Salesforce license user.
+`rest soql`, `rest tooling`, and `rest config` require an OAuth Bearer token from a full Salesforce license user with **API Enabled** in their profile.
 
 | File | CLI flag | Value |
 |---|---|---|
@@ -112,7 +112,11 @@ Capture from DevTools: Network tab, filter by `/aura`, click any POST, copy the 
 ```bash
 sfmap TARGET rest soql
 sfmap TARGET rest tooling
+sfmap TARGET rest config
 ```
+
+> [!NOTE]
+> The Salesforce `sid` cookie is the OAuth access token for the session. Pass it as `--cookie "sid=VALUE"` and sfmap derives the Bearer token automatically. This works for Chatter but not for SOQL or config review unless the user's profile has API Enabled.
 
 ## Surfaces and Commands
 
@@ -124,11 +128,11 @@ sfmap URL aura    objects | dump | record | info | crud | inject | related |
                   follow | idor | apex | controllers | flow | network |
                   bootstrap | views
 
-sfmap URL lightning   controllers | objects | assess
+sfmap URL lightning   controllers | objects | config | assess
 
 sfmap URL rest    graphql introspect | query | dump
                   content enum | download | distribution
-                  static | apexrest | soql | sosl | tooling | chatter
+                  static | apexrest | soql | sosl | tooling | chatter | config
 
 sfmap URL surface exposure
 sfmap URL files   download ID
@@ -235,8 +239,17 @@ sfmap TARGET rest content distribution
 
 ```bash
 sfmap TARGET lightning controllers   # fuzz aura:// framework controllers
-sfmap TARGET lightning objects       # enumerate visible objects (experimental)
+sfmap TARGET lightning objects       # enumerate visible objects via getConfigData
+sfmap TARGET lightning config        # configuration review (requires API Enabled or admin bearer)
 ```
+
+`lightning config` only needs a `sid` cookie. No Aura context or token required:
+
+```bash
+sfmap TARGET lightning config --cookie "sid=VALUE"
+```
+
+It queries ConnectedApplications, NamedCredentials, RemoteSiteSettings, AuthProviders, Profiles, PermissionSets, active Flows, and SessionSettings (via Tooling API). Flags broad scopes, HTTP endpoints, ModifyAllData/ViewAllData on profiles, and flows running without sharing.
 
 ### Report
 
@@ -262,11 +275,13 @@ salesforce_{host}/
     flow_hits.json
     lightning_controller_hits.json
     lightning_objects.json
+    csp_trusted_sites.json
     {Object}__page{N}.json
     graphql/
     chatter/
     soql/
     tooling/
+    config/
     downloads/
   report.html
 ```
