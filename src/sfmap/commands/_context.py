@@ -19,6 +19,14 @@ from ..core.utils import burp as burp_mod, common, storage
 from ..core.utils.common import resolve_lightning_url
 
 
+def _sid_from_cookie(cookie: str) -> str | None:
+    for part in cookie.split(";"):
+        k, _, v = part.strip().partition("=")
+        if k.strip().lower() == "sid":
+            return v.strip() or None
+    return None
+
+
 def _resolve_file_arg(value: str | None, default_file: str, label: str = "") -> str | None:
     raw = value or f"@{default_file}"
     if raw.startswith("@"):
@@ -300,6 +308,11 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
         raise SystemExit(1)
 
     bearer = _resolve_file_arg(getattr(args, "bearer", None), "bearer.txt", "bearer")
+    if not bearer and cookie:
+        sid = _sid_from_cookie(cookie)
+        if sid:
+            bearer = sid
+            logger.info("bearer: derived from sid cookie (Salesforce session ID is the OAuth access token)")
 
     return Session(
         url=url,
