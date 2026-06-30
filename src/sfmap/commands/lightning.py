@@ -8,7 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..core.client import AuraClient
-from ..core.modules import enum, lightning_controllers
+from ..core.modules import config, enum, lightning_controllers
 from ..core.utils.storage import OutputWriter
 from ._context import _build_lightning_session, _resolve_output_dir
 from ._phase_runner import run_phase_loop
@@ -17,10 +17,12 @@ from ._phase_runner import run_phase_loop
 # Keep in sync with the actual save() calls in each cmd_* handler below.
 SENTINEL_CONTROLLERS = "lightning_controller_hits.json"
 SENTINEL_OBJECTS = "lightning_objects.json"
+SENTINEL_CONFIG = "config/config_summary.json"
 
 _PHASE_SENTINELS: dict[str, str] = {
     "lightning controllers": SENTINEL_CONTROLLERS,
     "lightning objects":     SENTINEL_OBJECTS,
+    "config review":         SENTINEL_CONFIG,
 }
 
 _ASSESS_DEFAULTS: list[tuple[str, object]] = [
@@ -71,6 +73,14 @@ def cmd_lightning_objects(args: argparse.Namespace) -> int:
     return 1 if objects else 0
 
 
+def cmd_lightning_config(args: argparse.Namespace) -> int:
+    session = _build_lightning_session(args)
+    out = OutputWriter(_resolve_output_dir(args, session))
+    with AuraClient(session) as client:
+        results = config.run(client, session.url, out)
+    return 1 if any(v > 0 for v in results.values()) else 0
+
+
 def cmd_lightning_assess(args: argparse.Namespace) -> int:
     session = _build_lightning_session(args)
     out_dir = _resolve_output_dir(args, session)
@@ -78,6 +88,7 @@ def cmd_lightning_assess(args: argparse.Namespace) -> int:
     phases = [
         ("lightning controllers", cmd_lightning_controllers),
         ("lightning objects",     cmd_lightning_objects),
+        ("config review",         cmd_lightning_config),
     ]
 
     return run_phase_loop(phases, _PHASE_SENTINELS, _ASSESS_DEFAULTS, out_dir, args)

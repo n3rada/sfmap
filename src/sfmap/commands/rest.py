@@ -8,7 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..core.client import AuraClient
-from ..core.modules import apexrest, chatter, content, dump, enum, graphql, soql, staticresource, tooling
+from ..core.modules import apexrest, chatter, config, content, dump, enum, graphql, soql, staticresource, tooling
 from ..core.utils.storage import OutputWriter
 from ._context import _build_session, _resolve_output_dir
 
@@ -101,6 +101,14 @@ def cmd_tooling_query(args: argparse.Namespace) -> int:
     with AuraClient(session) as client:
         results = tooling.run(client, session.url, out)
     return 1 if results else 0
+
+
+def cmd_config_review(args: argparse.Namespace) -> int:
+    session = _build_session(args)
+    out = OutputWriter(_resolve_output_dir(args, session))
+    with AuraClient(session) as client:
+        results = config.run(client, session.url, out)
+    return 1 if any(v > 0 for v in results.values()) else 0
 
 
 def cmd_content_enum(args: argparse.Namespace) -> int:

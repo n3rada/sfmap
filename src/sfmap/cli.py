@@ -17,15 +17,17 @@ from .commands.aura import (
     cmd_related_lists, cmd_soql_inject,
 )
 from .commands.rest import (
-    cmd_apexrest_fuzz, cmd_chatter, cmd_content_distribution, cmd_content_download,
-    cmd_content_enum, cmd_graphql_dump, cmd_graphql_introspect, cmd_graphql_query,
-    cmd_soql_query, cmd_sosl_query, cmd_static_resources, cmd_tooling_query,
+    cmd_apexrest_fuzz, cmd_chatter, cmd_config_review, cmd_content_distribution,
+    cmd_content_download, cmd_content_enum, cmd_graphql_dump, cmd_graphql_introspect,
+    cmd_graphql_query, cmd_soql_query, cmd_sosl_query, cmd_static_resources, cmd_tooling_query,
 )
 from .commands.surface import cmd_exposure
 from .commands.files import cmd_download
 from .commands.assess import cmd_assess
 from .commands.report import cmd_report
-from .commands.lightning import cmd_lightning_assess, cmd_lightning_controllers, cmd_lightning_objects
+from .commands.lightning import (
+    cmd_lightning_assess, cmd_lightning_config, cmd_lightning_controllers, cmd_lightning_objects,
+)
 from .commands.detect import cmd_detect
 from .core.utils import logbook
 
@@ -323,6 +325,13 @@ def build_parser() -> argparse.ArgumentParser:
     _add_common_args(p_chatter)
     p_chatter.set_defaults(func=cmd_chatter)
 
+    p_config = rest_sub.add_parser(
+        "config",
+        help="Query setup/configuration objects (ConnectedApp, NamedCredential, Profile, PermissionSet, Flow, SessionSettings) — requires Bearer token",
+    )
+    _add_common_args(p_config)
+    p_config.set_defaults(func=cmd_config_review)
+
     # -- lightning -----------------------------------------------------------
     p_lightning = surfaces.add_parser(
         "lightning",
@@ -347,6 +356,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common_args(p_lo)
     p_lo.set_defaults(func=cmd_lightning_objects)
+
+    p_lcfg = lightning_sub.add_parser(
+        "config",
+        help="Query setup/configuration objects via REST (ConnectedApp, NamedCredential, Profile, Flow, SessionSettings) — requires Bearer token",
+    )
+    _add_common_args(p_lcfg)
+    p_lcfg.set_defaults(func=cmd_lightning_config)
 
     p_la = lightning_sub.add_parser(
         "assess",
