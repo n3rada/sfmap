@@ -6,6 +6,7 @@ import json
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 
 # Third-party imports
 import httpx
@@ -223,12 +224,20 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
             raise SystemExit(1)
         ensure_surface_profile(args.url, "lightning")
 
-    # Burp: parse first so individual files can fall back to it
+    # Burp: validate domain before loading, then parse
     burp_cookie: str | None = None
     burp_token: str | None = None
     burp_context_str: str | None = None
     burp_path = Path("burp.txt")
     if burp_path.exists():
+        burp_host = burp_mod.parse_burp_host(burp_path)
+        target_host = urlparse(url).netloc
+        if burp_host and burp_host != target_host:
+            logger.error(
+                f"burp.txt was captured from {burp_host!r} but target is {target_host!r}. "
+                "Capture a fresh request from the correct domain and save it as burp.txt."
+            )
+            raise SystemExit(1)
         burp_cookie, burp_token, burp_context_str = burp_mod.parse_burp_request(burp_path)
         if burp_cookie:
             logger.info(f"burp: loaded cookie ({len(burp_cookie)} chars)")

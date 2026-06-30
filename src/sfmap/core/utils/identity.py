@@ -39,6 +39,31 @@ def _via_rest(client: AuraClient) -> str | None:
     return None
 
 
+def _via_lightning_user(client: AuraClient) -> str | None:
+    """Call aura://UserController/ACTION$getUserInfoMap (Lightning one:one surface only)."""
+    payload = {
+        "actions": [{
+            "id": "identity;a",
+            "descriptor": "aura://UserController/ACTION$getUserInfoMap",
+            "callingDescriptor": "UNKNOWN",
+            "params": {},
+        }]
+    }
+    try:
+        resp = client.aura_post(payload)
+        actions = resp.get("actions", [])
+        if not actions or actions[0].get("state") != "SUCCESS":
+            return None
+        rv = actions[0].get("returnValue") or {}
+        username = rv.get("userName") or rv.get("username")
+        if username:
+            logger.debug(f"Identity: resolved via Lightning UserController: {username!r}")
+            return username
+    except Exception:
+        logger.debug("Identity: Lightning UserController not available on this surface")
+    return None
+
+
 def _via_aura_user(client: AuraClient) -> str | None:
     """
     Call SelectableListDataProvider/getItems on the User object.
@@ -85,7 +110,7 @@ def _via_aura_user(client: AuraClient) -> str | None:
             logger.debug(f"Identity: resolved via User.getItems Name: {name!r}")
             return name
     except Exception:
-        logger.exception("Identity: User.getItems failed")
+        logger.debug("Identity: User.getItems not available on this surface")
     return None
 
 
@@ -94,15 +119,16 @@ def resolve(client: AuraClient) -> str:
     Resolve the current authenticated session to a filesystem-safe identity label.
 
     Resolution order:
-    1. REST /chatter/users/me (bearer or session cookie, works when REST API is enabled)
-    2. Aura ListViewDataManager/getItems on User (community context returns current user's record)
-    3. Fallback: "authenticated"
+    1. REST /chatter/users/me (bearer or session cookie, works on both surfaces)
+    2. Lightning: aura://UserController/ACTION$getUserInfoMap (one:one surface)
+    3. EC: SelectableListDataProvider/getItems on User (community surface)
+    4. Fallback: "authenticated"
     """
     label = _via_rest(client)
     if label:
         return _safe(label)
 
-    label = _via_aura_user(client)
+    label = _via_lightning_user(client) or _via_aura_user(client)
     if label:
         return _safe(label)
 
@@ -112,7 +138,7 @@ def resolve(client: AuraClient) -> str:
 
 def resolve_with_display(client: AuraClient) -> tuple[str, str]:
     """Return (safe_dir_name, display_name). Display name preserves original casing."""
-    raw = _via_rest(client) or _via_aura_user(client)
+    raw = _via_rest(client) or _via_lightning_user(client) or _via_aura_user(client)
     if raw:
         display = re.sub(r"<[^>]+>", "", raw).strip()
         return _safe(raw), display

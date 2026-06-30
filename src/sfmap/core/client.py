@@ -67,6 +67,8 @@ class AuraClient:
             content=body.encode("utf-8"),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
+        if resp.status_code == 401:
+            raise AuraSessionExpired("Session rejected (HTTP 401): cookie or token is invalid or expired")
         resp.raise_for_status()
         text = resp.text.lstrip("/*").lstrip()
         logger.trace(f"Aura response HTTP {resp.status_code}: {text[:2000]}")

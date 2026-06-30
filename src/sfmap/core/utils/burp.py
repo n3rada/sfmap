@@ -10,6 +10,45 @@ from urllib.parse import unquote_plus
 from loguru import logger
 
 
+def _extract_host(text: str) -> str | None:
+    line_sep = "\r\n" if "\r\n" in text else "\n"
+    for line in text.split(line_sep)[1:]:
+        low = line.lower()
+        if low.startswith("host:"):
+            return line[5:].strip() or None
+        if not line.strip():
+            break
+    return None
+
+
+def parse_burp_host(path: Path) -> str | None:
+    """Return the Host header value from a Burp export or raw HTTP request."""
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return None
+
+    stripped = text.lstrip()
+    if stripped.startswith("<?xml") or stripped.startswith("<items"):
+        try:
+            root = ET.fromstring(text)
+            item = root.find("item")
+            req_elem = item.find("request") if item is not None else None
+            if req_elem is None:
+                return None
+            raw_bytes = req_elem.text or ""
+            http_text = (
+                base64.b64decode(raw_bytes).decode("utf-8", errors="replace")
+                if req_elem.get("base64") == "true"
+                else raw_bytes
+            )
+        except ET.ParseError:
+            return None
+        return _extract_host(http_text)
+
+    return _extract_host(text)
+
+
 def _parse_raw_http(text: str) -> tuple[str | None, str | None, str | None]:
     line_sep = "\r\n" if "\r\n" in text else "\n"
     lines = text.split(line_sep)
