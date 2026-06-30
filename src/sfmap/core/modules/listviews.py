@@ -6,7 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 
 def _chunked_post(client: AuraClient, actions: list[dict], chunk_size: int = 100) -> list[dict]:
@@ -34,7 +34,7 @@ def _app_base(aura_url: str) -> str:
     return f"{p.scheme}://{p.netloc}{path.rstrip('/')}"
 
 
-def sweep(client: AuraClient, objects: list[str], out: OutputWriter) -> list[str]:
+def sweep(client: AuraClient, objects: list[str], out: storage.OutputWriter) -> list[str]:
     """
     Enumerate which objects have accessible UI list views in the community.
 

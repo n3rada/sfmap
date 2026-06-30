@@ -49,11 +49,13 @@ def output_dir(url: str) -> str:
     return f"salesforce_{safe_host}"
 
 
-def init_target_dirs(url: str) -> Path:
-    """Create the target root and its guest/ and users/ subdirectories. Returns the root path."""
+def init_target_dirs(url: str, surface: str = "experience_cloud") -> Path:
+    """Create the target root directory and surface-appropriate subdirectories."""
     root = Path(output_dir(url))
-    (root / "guest").mkdir(parents=True, exist_ok=True)
-    (root / "users").mkdir(parents=True, exist_ok=True)
+    root.mkdir(parents=True, exist_ok=True)
+    if surface == "experience_cloud":
+        (root / "guest").mkdir(exist_ok=True)
+    (root / "users").mkdir(exist_ok=True)
     return root
 
 

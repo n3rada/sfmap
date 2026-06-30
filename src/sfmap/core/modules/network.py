@@ -3,7 +3,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 from . import dump
 
 _OBJECTS = [
@@ -56,7 +56,7 @@ def _get_full_record(client: AuraClient, record_id: str) -> dict | None:
     return None
 
 
-def fetch(client: AuraClient, out: OutputWriter) -> dict[str, list]:
+def fetch(client: AuraClient, out: storage.OutputWriter) -> dict[str, list]:
     """
     Enumerate Experience Cloud network configuration.
     Network.GuestProfileId reveals the profile governing all unauthenticated

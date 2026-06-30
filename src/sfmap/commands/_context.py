@@ -212,6 +212,7 @@ def _build_lightning_session(args: argparse.Namespace) -> Session:
     url = resolve_lightning_url(args.url)
     logger.info(f"Surface: Lightning Aura: {url}")
 
+    storage.init_target_dirs(args.url, surface="lightning")
     profile_path = Path(storage.output_dir(args.url)) / "surface_profile.json"
     if not profile_path.exists():
         http = httpx.Client(verify=False, timeout=10.0, follow_redirects=True, headers={"User-Agent": USER_AGENT})

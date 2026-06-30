@@ -3,10 +3,10 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 
-def fetch(client: AuraClient, out: OutputWriter) -> dict[str, str]:
+def fetch(client: AuraClient, out: storage.OutputWriter) -> dict[str, str]:
     """
     Fetch bootstrap data via CMCAppController.
 

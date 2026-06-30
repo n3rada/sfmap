@@ -7,7 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 _METHODS = ("GET", "POST")
 
@@ -34,7 +34,7 @@ def _load_wordlist(custom_path: str | None) -> list[str]:
 def fuzz(
     client: AuraClient,
     aura_url: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     wordlist_path: str | None = None,
     methods: tuple[str, ...] = _METHODS,
 ) -> list[dict]:

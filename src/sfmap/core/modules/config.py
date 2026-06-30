@@ -1,12 +1,12 @@
 # Built-in imports
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import common, storage
 
 _CONFIG_QUERIES: list[tuple[str, str]] = [
     (
@@ -96,11 +96,6 @@ _RISKY_PERM_FLAGS = (
 )
 
 
-def _base_url(url: str) -> str:
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}"
-
-
 def _soql_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
     records: list[dict] = []
     url = f"{endpoint}?q={quote_plus(soql)}"
@@ -116,7 +111,7 @@ def _soql_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
         data = resp.json()
         records.extend(data.get("records", []))
         next_url = data.get("nextRecordsUrl")
-        url = f"{_base_url(endpoint)}{next_url}" if next_url else None
+        url = f"{common.resolve_rest_base_url(endpoint)}{next_url}" if next_url else None
     return records
 
 
@@ -154,13 +149,13 @@ def _flag_risky(obj_name: str, records: list[dict]) -> None:
         return
 
 
-def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
+def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[str, int]:
     """
     Query Salesforce for setup/configuration objects via SOQL and Tooling API.
     Flags high-risk findings. Requires Bearer token for most queries.
     Returns {object_name: record_count} for every successful query.
     """
-    base = _base_url(aura_url)
+    base = common.resolve_rest_base_url(aura_url)
     soql_endpoint = f"{base}/services/data/{REST_API_VERSION}/query"
     tooling_endpoint = f"{base}/services/data/{REST_API_VERSION}/tooling/query"
     config_out = out.subdir("config")

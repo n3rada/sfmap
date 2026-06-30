@@ -6,7 +6,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 _DESCRIPTOR = (
     "serviceComponent://ui.flow.components.controllers.InterviewController"
@@ -68,7 +68,7 @@ def _probe(client: AuraClient, flow_name: str) -> dict | None:
     return {"_error": msg}
 
 
-def fuzz(client: AuraClient, out: OutputWriter, wordlist_path: str | None = None) -> list[dict]:
+def fuzz(client: AuraClient, out: storage.OutputWriter, wordlist_path: str | None = None) -> list[dict]:
     """
     Wordlist-fuzz Flow API names via InterviewController/ACTION$getFlowUIMetadata.
     SUCCESS → flow fully accessible (metadata returned).

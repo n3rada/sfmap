@@ -104,6 +104,23 @@ Surfaces: `aura`, `rest`, `surface`, `files`, `report`.
 
 Modules are stateless functions; they receive a client and return results. They do not hold state between calls. Modules call `client.aura_post()` or `client.rest_get()`, never `httpx` directly.
 
+### Import Conventions
+
+Always import utility packages as modules, never cherry-pick names from them:
+
+```python
+# correct
+from ..utils import common, storage
+common.resolve_rest_base_url(url)
+storage.OutputWriter(path)
+
+# wrong
+from ..utils.common import resolve_rest_base_url
+from ..utils.storage import OutputWriter
+```
+
+This keeps the origin of every utility call visible at the call site.
+
 ### Key Modules
 
 **`enum.py`**: `list_objects(client)` via `getConfigData`. Returns `{name: prefix}` dict. Raises on Aura exception. Called by most other modules to get the object list.

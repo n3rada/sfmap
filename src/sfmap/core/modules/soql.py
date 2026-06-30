@@ -1,12 +1,12 @@
 # Built-in imports
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import common, storage
 
 _SOSL_PROBE_TERMS = [
     "admin",
@@ -27,14 +27,14 @@ _SOSL_RETURNING = (
 )
 
 
-def run_sosl(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
+def run_sosl(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[str, int]:
     """
     Run SOSL FIND queries via REST /services/data/{v}/search.
     Returns {search_term: total_results} for each term that returned data.
     """
     from urllib.parse import quote_plus as _qp
 
-    base = _base_url(aura_url)
+    base = common.resolve_rest_base_url(aura_url)
     endpoint = f"{base}/services/data/{REST_API_VERSION}/search"
 
     test_q = f"FIND {{admin}} IN ALL FIELDS RETURNING {_SOSL_RETURNING} LIMIT 5"
@@ -96,18 +96,13 @@ _PROBE_QUERIES: list[tuple[str, str]] = [
 ]
 
 
-def _base_url(aura_url: str) -> str:
-    parsed = urlparse(aura_url)
-    return f"{parsed.scheme}://{parsed.netloc}"
-
-
-def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
+def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[str, int]:
     """
     Run SOQL queries via the REST /services/data/{v}/query endpoint.
     If the endpoint is inaccessible returns an empty dict.
     Returns {object_name: record_count} for each successful query.
     """
-    base = _base_url(aura_url)
+    base = common.resolve_rest_base_url(aura_url)
     endpoint = f"{base}/services/data/{REST_API_VERSION}/query"
 
     test_url = f"{endpoint}?q={quote_plus('SELECT Id FROM User LIMIT 1')}"

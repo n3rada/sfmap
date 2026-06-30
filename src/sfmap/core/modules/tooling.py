@@ -1,12 +1,12 @@
 # Built-in imports
-from urllib.parse import quote_plus, urlparse
+from urllib.parse import quote_plus
 
 # Third-party imports
 from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import common, storage
 
 _QUERIES: list[tuple[str, str]] = [
     (
@@ -28,11 +28,6 @@ _QUERIES: list[tuple[str, str]] = [
 ]
 
 
-def _base_url(aura_url: str) -> str:
-    parsed = urlparse(aura_url)
-    return f"{parsed.scheme}://{parsed.netloc}"
-
-
 def _query_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
     records: list[dict] = []
     url = f"{endpoint}?q={quote_plus(soql)}"
@@ -48,17 +43,17 @@ def _query_all(client: AuraClient, endpoint: str, soql: str) -> list[dict]:
         data = resp.json()
         records.extend(data.get("records", []))
         next_url = data.get("nextRecordsUrl")
-        url = f"{_base_url(url)}{next_url}" if next_url else None
+        url = f"{common.resolve_rest_base_url(url)}{next_url}" if next_url else None
     return records
 
 
-def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
+def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[str, int]:
     """
     Query Salesforce Tooling API for Apex source code.
     Requires a Bearer token; community sessions are blocked.
     Returns {type_name: record_count}.
     """
-    base = _base_url(aura_url)
+    base = common.resolve_rest_base_url(aura_url)
     endpoint = f"{base}/services/data/{REST_API_VERSION}/tooling/query"
 
     probe = f"{endpoint}?q={quote_plus('SELECT Id FROM ApexClass LIMIT 1')}"

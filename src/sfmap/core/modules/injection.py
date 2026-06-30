@@ -3,7 +3,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 # SOQL injection payloads, ordered from least to most aggressive.
 # Detection strategy: if the injected query returns more records than the
@@ -170,7 +170,7 @@ def run(
     client: AuraClient,
     objects: dict[str, str],
     apex_hits: list[str],
-    out: OutputWriter,
+    out: storage.OutputWriter,
 ) -> dict:
     """
     Run all injection probes: getItems where-clause and Apex method params.

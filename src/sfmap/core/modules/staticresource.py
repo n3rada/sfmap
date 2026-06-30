@@ -7,7 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 from . import dump
 
 
@@ -55,7 +55,7 @@ def _fetch(client: AuraClient, base: str, name: str) -> tuple[int, bytes]:
 def fuzz(
     client: AuraClient,
     aura_url: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     wordlist_path: str | None = None,
 ) -> list[dict]:
     base = _base_url(aura_url)

@@ -3,7 +3,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 _PROBE_MARKER = "sfmap_probe_do_not_use"
 
@@ -97,7 +97,7 @@ def probe_object(client: AuraClient, object_name: str) -> dict:
 def probe(
     client: AuraClient,
     objects: dict[str, str],
-    out: OutputWriter,
+    out: storage.OutputWriter,
 ) -> dict[str, dict]:
     """
     Probe create/delete access for each object in *objects*.

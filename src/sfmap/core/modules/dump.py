@@ -9,7 +9,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 DEFAULT_PAGE_SIZE = 100
 MAX_PAGE_SIZE = 1000
@@ -152,7 +152,7 @@ def get_object_info(client: AuraClient, object_name: str) -> dict | None:
 def dump_object(
     client: AuraClient,
     object_name: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     full: bool = False,
     display: bool = False,
     custom_fields: bool = False,
@@ -197,7 +197,7 @@ def dump_object(
     return wrote_any
 
 
-def write_page(out: OutputWriter, object_name: str, page: int, value: dict) -> None:
+def write_page(out: storage.OutputWriter, object_name: str, page: int, value: dict) -> None:
     path = out.save(f"{object_name}__page{page}.json", value)
     logger.debug(f"Saved {path}")
 
@@ -224,7 +224,7 @@ def identify_custom_fields(return_value: dict) -> set[str]:
     return custom_fields
 
 
-def write_custom_fields_summary(out: OutputWriter, object_name: str, fields: set[str]) -> None:
+def write_custom_fields_summary(out: storage.OutputWriter, object_name: str, fields: set[str]) -> None:
     """Append custom field names for object_name to custom_fields_summary.txt."""
     filename = "custom_fields_summary.txt"
     header = not (out.path / filename).exists()
@@ -239,7 +239,7 @@ def write_custom_fields_summary(out: OutputWriter, object_name: str, fields: set
 
 
 def download_file(
-    client: "AuraClient", sf_id: str, aura_url: str, out: OutputWriter
+    client: "AuraClient", sf_id: str, aura_url: str, out: storage.OutputWriter
 ) -> Path | None:
     """
     Download a Salesforce file by ContentDocument (069) or ContentVersion (068) ID.

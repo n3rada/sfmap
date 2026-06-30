@@ -38,6 +38,21 @@ def resolve_lightning_url(raw: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}{_LIGHTNING_AURA_PATH}"
 
 
+def resolve_rest_base_url(aura_url: str) -> str:
+    """Return the REST API base URL for any Salesforce Aura endpoint URL.
+
+    lightning.force.com and my.salesforce.com both serve /services/data/ natively.
+    Only my.salesforce-setup.com is a UI-only domain that needs to be mapped to
+    the org's my.salesforce.com for REST API access.
+    """
+    parsed = urlparse(aura_url)
+    host = parsed.netloc
+    if host.endswith(".my.salesforce-setup.com"):
+        prefix = host[: -len(".my.salesforce-setup.com")]
+        host = f"{prefix}.my.salesforce.com"
+    return f"{parsed.scheme}://{host}"
+
+
 def default_output_dir(url: str) -> str:
     """Derive a filesystem-safe output directory name from a URL.
 

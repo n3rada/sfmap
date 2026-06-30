@@ -7,8 +7,8 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
+from ..utils import storage
 from ..session import Session
-from ..utils.storage import OutputWriter
 from . import dump
 
 _SF_ID_RE = re.compile(r'\b([0-9A-Za-z]{15}|[0-9A-Za-z]{18})\b')
@@ -95,7 +95,7 @@ def collect_ids_from_directory(directory: str) -> list[str]:
 def probe_guest(
     session: Session,
     record_ids: list[str],
-    out: OutputWriter,
+    out: storage.OutputWriter,
 ) -> list[dict]:
     """
     Try getRecord for each ID via an unauthenticated guest session.

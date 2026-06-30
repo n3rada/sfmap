@@ -8,7 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient
-from ..utils.storage import OutputWriter
+from ..utils import storage
 from . import dump
 
 _DESCRIPTOR = (
@@ -88,7 +88,7 @@ def _probe_relationship(
 def probe(
     client: AuraClient,
     record_id: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     object_api_name: str | None = None,
 ) -> dict[str, int]:
     """
@@ -152,7 +152,7 @@ def probe(
     return results
 
 
-def sweep(client: AuraClient, out: OutputWriter) -> dict[str, dict[str, int]]:
+def sweep(client: AuraClient, out: storage.OutputWriter) -> dict[str, dict[str, int]]:
     """
     Scan output_dir for existing Aura and GraphQL dumps, probe child
     relations from one sample record per object type. Discovers objects

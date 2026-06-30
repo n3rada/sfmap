@@ -8,7 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import storage
 from . import dump
 
 _IP_RE = re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b')
@@ -72,7 +72,7 @@ def _check_file_upload(client: AuraClient, aura_url: str) -> dict | None:
         return None
 
 
-def _enumerate_via_aura(client: AuraClient, out: OutputWriter) -> dict[str, int]:
+def _enumerate_via_aura(client: AuraClient, out: storage.OutputWriter) -> dict[str, int]:
     """Dump FeedItem, FeedComment and FeedAttachment via Aura getItems."""
     found: dict[str, int] = {}
     for obj in ("FeedItem", "FeedComment", "FeedAttachment"):
@@ -87,7 +87,7 @@ def _enumerate_via_aura(client: AuraClient, out: OutputWriter) -> dict[str, int]
     return found
 
 
-def _enumerate_via_rest(client: AuraClient, aura_url: str, out: OutputWriter) -> dict[str, int]:
+def _enumerate_via_rest(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict[str, int]:
     """Probe Chatter REST feed endpoints."""
     base = _base_url(aura_url)
     endpoints = [
@@ -119,7 +119,7 @@ def _enumerate_via_rest(client: AuraClient, aura_url: str, out: OutputWriter) ->
     return found
 
 
-def _enumerate_users(client: AuraClient, aura_url: str, out: OutputWriter) -> list[dict]:
+def _enumerate_users(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> list[dict]:
     """Enumerate Chatter users via REST, extracting names, usernames and photos."""
     base = _base_url(aura_url)
     users: list[dict] = []
@@ -168,7 +168,7 @@ def _enumerate_users(client: AuraClient, aura_url: str, out: OutputWriter) -> li
 def _download_content_versions(
     client: AuraClient,
     aura_url: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     version_ids: list[tuple[str, str, str]],
 ) -> list[dict]:
     """
@@ -212,7 +212,7 @@ def _download_content_versions(
     return results
 
 
-def run(client: AuraClient, aura_url: str, out: OutputWriter) -> dict:
+def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> dict:
     chatter_out = out.subdir("chatter")
 
     file_upload_finding = _check_file_upload(client, aura_url)

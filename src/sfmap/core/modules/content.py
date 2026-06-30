@@ -7,7 +7,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import storage
 from . import dump
 
 
@@ -24,7 +24,7 @@ def _extract_ids(rv: dict) -> list[str]:
 
 def enumerate_content(
     client: AuraClient,
-    out: OutputWriter,
+    out: storage.OutputWriter,
 ) -> dict[str, list[str]]:
     """
     Dump ContentDocument and ContentVersion via Aura getItems.
@@ -100,8 +100,8 @@ def probe_rest(
 def download_all(
     client: AuraClient,
     aura_url: str,
-    out: OutputWriter,
-    downloads_out: OutputWriter,
+    out: storage.OutputWriter,
+    downloads_out: storage.OutputWriter,
 ) -> int:
     """
     Enumerate ContentDocument + ContentVersion via Aura then download every
@@ -134,7 +134,7 @@ def download_all(
 def check_content_distribution(
     client: AuraClient,
     aura_url: str,
-    out: OutputWriter,
+    out: storage.OutputWriter,
 ) -> list[dict]:
     """
     Enumerate ContentDistribution records and probe each public URL without auth.
@@ -211,7 +211,7 @@ def check_content_distribution(
     return public_hits
 
 
-def run(client: AuraClient, aura_url: str, out: OutputWriter) -> int:
+def run(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> int:
     """
     Full content-enumeration check.
 

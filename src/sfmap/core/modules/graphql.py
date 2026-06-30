@@ -8,7 +8,7 @@ from loguru import logger
 
 # Local imports
 from ..client import AuraClient, REST_API_VERSION
-from ..utils.storage import OutputWriter
+from ..utils import storage
 
 _INTROSPECTION_QUERY = """
 {
@@ -129,7 +129,7 @@ def _via_aura(client: AuraClient) -> tuple[dict | None, str]:
         return None, "request failed"
 
 
-def introspect(client: AuraClient, aura_url: str, out: OutputWriter) -> bool:
+def introspect(client: AuraClient, aura_url: str, out: storage.OutputWriter) -> bool:
     """
     Run GraphQL introspection against the target.
 
@@ -214,7 +214,7 @@ def dump_object(
     client: AuraClient,
     object_name: str,
     fields: list[str],
-    out: OutputWriter,
+    out: storage.OutputWriter,
     page_size: int = 200,
 ) -> list[dict]:
     """
@@ -291,7 +291,7 @@ _FALLBACK_FIELDS = ["Name", "CreatedDate", "LastModifiedDate", "Description", "S
 
 def autodump(
     client: AuraClient,
-    out: OutputWriter,
+    out: storage.OutputWriter,
     object_names: list[str] | None = None,
     max_fields: int = 30,
 ) -> dict[str, int]:
@@ -375,7 +375,7 @@ def _gql_query_payload(object_name: str, first: int = 200, after: str | None = N
 def query_objects(
     client: AuraClient,
     object_names: list[str],
-    out: OutputWriter,
+    out: storage.OutputWriter,
     page_size: int = 200,
 ) -> dict[str, int]:
     """
